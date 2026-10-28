@@ -1,6 +1,5 @@
 import * as THREE from "three/webgpu";
 import {
-  abs,
   clamp,
   color,
   float,
@@ -25,8 +24,16 @@ import {
   vec4,
 } from "three/tsl";
 import { PALETTE } from "../config.js";
+import { createTableMarks } from "./tableMarks.js";
 
 export const TABLE = { width: 9, depth: 5, thickness: 0.4 };
+export const MOON_POSITION = new THREE.Vector3(4.2, 2.3, -17);
+
+const CANDLES = [
+  { x: -3.3, z: -1.4, height: 1.0 },
+  { x: -2.75, z: -1.9, height: 0.65 },
+  { x: 3.4, z: -1.2, height: 0.85 },
+];
 
 /**
  * Leshy-style cabin: a worn table with carved card slots, candles, a violet
@@ -41,11 +48,7 @@ export class Cabin {
 
     this.addLights();
     this.addTable();
-    this.candles = [
-      this.addCandle(new THREE.Vector3(-3.3, 0, -1.4), 1.0),
-      this.addCandle(new THREE.Vector3(-2.75, 0, -1.9), 0.65),
-      this.addCandle(new THREE.Vector3(3.4, 0, -1.2), 0.85),
-    ];
+    this.candles = CANDLES.map((c) => this.addCandle(new THREE.Vector3(c.x, 0, c.z), c.height));
     this.addMoon();
     this.addDust();
 
@@ -127,19 +130,23 @@ export class Cabin {
     let wood = mix(color(0x2a140c), color(0x5c3218), clamp(grain.add(0.5), 0, 1));
     wood = mix(wood, color(0x120805), max(seam, knots.mul(0.7)));
 
-    // Card slots carved into the wood around the pumpkin spot, 4 x 2 grid.
-    const slotUV = vec2(p.x.add(2.2).div(1.1), p.z.add(1.5).div(1.5));
-    const cell = fract(slotUV);
-    const inGrid = step(0, slotUV.x).mul(step(slotUV.x, 4)).mul(step(0, slotUV.y)).mul(step(slotUV.y, 2));
-    const edge = max(abs(cell.x.sub(0.5)).mul(1.1), abs(cell.y.sub(0.5)).mul(1.04));
-    const groove = smoothstep(0.43, 0.45, edge).mul(float(1).sub(smoothstep(0.48, 0.5, edge))).mul(inGrid);
-    wood = mix(wood, color(0x0a0403), groove.mul(0.85));
-
     // Old stains.
     const stain = smoothstep(0.55, 0.75, mx_noise_float(vec3(p.x.mul(0.6), p.z.mul(0.6), 9)).mul(0.5).add(0.5));
     wood = mix(wood, color(0x1a0a08), stain.mul(0.5));
 
-    const baked = texture(this.renderer.bake(vec4(wood, clamp(grain.add(0.5), 0, 1)), 1024, 576));
+    // Knife cuts, scratches and carvings: dark grooves with a lit lip on the
+    // side facing the lantern, which fakes their depth.
+    const marksMap = createTableMarks({ width: TABLE.width, depth: TABLE.depth, candles: CANDLES });
+    const marks = texture(marksMap, uv());
+    const lip = texture(marksMap, uv().add(vec2(0.0025, -0.0045))).r;
+    wood = mix(wood, color(0x060201), marks.r.mul(0.92));
+    wood = wood.add(color(0x8a5028).mul(max(lip.sub(marks.r), 0)));
+    // Scorched wood and spilt wax under the candles.
+    wood = mix(wood, color(0x050202), marks.b.mul(0.75));
+    wood = mix(wood, color(0x8f7c5a), marks.g.mul(0.85));
+    const roughness = mix(clamp(grain.add(0.5), 0, 1), float(0), marks.g);
+
+    const baked = texture(this.renderer.bake(vec4(wood, roughness), 1024, 576));
     material.colorNode = baked.rgb;
     material.roughnessNode = mix(float(0.75), float(0.95), baked.a);
 
@@ -211,7 +218,7 @@ export class Cabin {
     material.colorNode = baked.rgb.mul(rim.mul(0.9).add(0.5)).mul(1.6);
 
     const moon = new THREE.Mesh(new THREE.SphereGeometry(2.6, 48, 24), material);
-    moon.position.set(4.2, 2.3, -17);
+    moon.position.copy(MOON_POSITION);
     moon.lookAt(0, 2, 5);
     this.scene.add(moon);
 

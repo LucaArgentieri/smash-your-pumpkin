@@ -1,23 +1,38 @@
 import * as THREE from "three/webgpu";
-import { font, GAME, TEXT, TOOLS } from "../config.js";
+import { COMBO, font, GAME, TEXT, TOOLS } from "../config.js";
 import { FracturePool } from "../core/FracturePool.js";
 import { Physics } from "../core/Physics.js";
 import { live, Quality } from "../core/Quality.js";
 import { Renderer } from "../core/Renderer.js";
-import { tweens } from "../core/Tween.js";
+import { ease, tweens } from "../core/Tween.js";
 import { Debris } from "../fx/Debris.js";
 import { Pumpkin } from "../pumpkins/Pumpkin.js";
 import { VARIANTS } from "../pumpkins/variants.js";
 import { getPumpkinMaterials } from "../pumpkins/materials.js";
 import { loadPumpkinModel } from "../pumpkins/models.js";
 import { UI } from "../ui/UI.js";
-import { Cabin } from "../world/Cabin.js";
+import { Cabin, MOON_POSITION } from "../world/Cabin.js";
 import { Destruction } from "./Destruction.js";
 
 const PUMPKIN_SPOT = new THREE.Vector3(0, 0, 0.15);
 const LOOK_AT = new THREE.Vector3(0, 0.85, 0);
 const CAMERA_HOME = new THREE.Vector3(0, 2.75, 4.5);
+// Results / leaderboard shot: low, over the pumpkin's shoulder while it gazes
+// at the moon, drifting like an arcade attract mode.
+const TO_MOON = MOON_POSITION.clone().sub(PUMPKIN_SPOT).normalize();
+const TO_MOON_FLAT = new THREE.Vector3(TO_MOON.x, 0, TO_MOON.z).normalize();
+const MOON_GAZE = Math.atan2(TO_MOON.x, TO_MOON.z);
+const ACROSS_MOON = new THREE.Vector3(-TO_MOON_FLAT.z, 0, TO_MOON_FLAT.x);
+// Framed so the pumpkin sits bottom-right and the moon top-left, leaving the
+// centre for the results / leaderboard text.
+const SHOWCASE_POSITION = PUMPKIN_SPOT.clone()
+  .addScaledVector(TO_MOON_FLAT, -3)
+  .addScaledVector(ACROSS_MOON, -2.4)
+  .add(new THREE.Vector3(0, 1.6, 0));
+const SHOWCASE_LOOK = PUMPKIN_SPOT.clone().addScaledVector(TO_MOON, 9).addScaledVector(ACROSS_MOON, 2);
+
 const BEST_KEY = "smash-your-pumpkin:best";
+const COMBO_KEY = "smash-your-pumpkin:combo-record";
 // How far (world units) a click may miss a shard and still count: small
 // shards and touch screens would be frustrating otherwise.
 const AIM_ASSIST = 0.15;
@@ -58,6 +73,9 @@ export class Game {
     this.tool = 0;
     this.cooldownUntil = 0;
     this.pointerHeld = false;
+    this.cameraMode = "play";
+    this.cameraPosition = CAMERA_HOME.clone();
+    this.cameraLook = LOOK_AT.clone();
     this.deck = [];
     this.state = "loading";
     this.resetStats();
@@ -97,6 +115,7 @@ export class Game {
     this.combo = 0;
     this.bestCombo = 0;
     this.lastHitAt = -Infinity;
+    this.lastTool = null;
     this.timeLeft = GAME.duration;
   }
 
@@ -160,7 +179,7 @@ export class Game {
     if (this.state === "playing") {
       // Holding the button keeps swinging at the tool's own pace.
       this.pointerHeld = true;
-      this.smash();
+      this.smash({ deliberate: true });
     }
   }
 
@@ -175,8 +194,10 @@ export class Game {
   }
 
   selectTool(index) {
+    if (index === this.tool && this.state === "playing") return;
     this.tool = index;
     this.ui.select(index);
+    this.ui.describeTool(index, { flash: this.state === "playing" });
   }
 
   // --- Round flow ---------------------------------------------------------------
@@ -188,6 +209,8 @@ export class Game {
       this.ui.showCards(0.3);
     }
     this.dim(0);
+    this.cameraMode = "play";
+    this.turnPumpkin(0);
     this.destruction.clear();
     this.state = "intro";
     this.resetStats();
@@ -215,18 +238,24 @@ export class Game {
   async endRound() {
     this.state = "over";
     this.pointerHeld = false;
+    this.endCombo({ cashOut: true });
     if (this.pendingQuality) {
       this.cabin.setQuality(this.pendingQuality);
       this.pendingQuality = null;
     }
-    this.ui.combo.hide({ duration: 0.3 });
     await this.ui.announce(TEXT.timeUp, { hold: 0.9, style: "blood" });
     this.ui.hideHUD();
-    this.dim(1);
+    // The leaderboard shot: lighter dimming so the scene stays part of it.
+    this.dim(0.35);
+    this.cameraMode = "showcase";
+    this.turnPumpkin(MOON_GAZE);
 
-    const previousBest = readBest();
+    const previousBest = readNumber(BEST_KEY);
     const isBest = this.score > previousBest;
-    if (isBest) writeBest(this.score);
+    if (isBest) writeNumber(BEST_KEY, this.score);
+    const previousRecord = readNumber(COMBO_KEY);
+    const isComboRecord = this.bestCombo > previousRecord;
+    if (isComboRecord) writeNumber(COMBO_KEY, this.bestCombo);
     this.ui.showResults({
       score: this.score,
       pumpkins: this.pumpkinsSmashed,
@@ -234,6 +263,8 @@ export class Game {
       bestCombo: this.bestCombo,
       best: Math.max(previousBest, this.score),
       isBest: isBest && this.score > 0,
+      comboRecord: Math.max(previousRecord, this.bestCombo),
+      isComboRecord: isComboRecord && this.bestCombo > 1,
     });
     this.state = "results";
   }
@@ -263,17 +294,27 @@ export class Game {
     });
     this.pumpkin = pumpkin;
     pumpkin.spawn(PUMPKIN_SPOT);
+    if (this.cameraMode === "showcase") pumpkin.mesh.rotation.y = MOON_GAZE;
+  }
+
+  /** Slowly turns the pumpkin on the table (towards the moon for results). */
+  turnPumpkin(angle) {
+    const mesh = this.pumpkin?.mesh;
+    if (mesh) tweens.to(mesh.rotation, "y", angle, 1.8, { easing: ease.inOutQuad });
   }
 
   // --- Smashing -----------------------------------------------------------------
 
-  async smash() {
+  /** `deliberate`: a fresh click, not an auto-repeat from holding the button. */
+  async smash({ deliberate = false } = {}) {
     if (this.elapsed < this.cooldownUntil) return;
     this.raycaster.setFromCamera(this.ndc, this.camera);
     const targets = this.destruction.targets(this.pumpkin);
     const hit = this.raycaster.intersectObjects(targets, false)[0] ?? this.nearMiss(targets);
     if (!hit) {
-      // Throttle the raycasts of a held button sweeping over empty table.
+      // A deliberate swing at nothing breaks the combo (no cash-out). Held
+      // swings sweeping over empty table are only throttled.
+      if (deliberate && this.combo > 1) this.endCombo({ cashOut: false });
       this.cooldownUntil = this.elapsed + 0.08;
       return;
     }
@@ -295,7 +336,7 @@ export class Game {
       this.pumpkin = null;
       tweens.after(GAME.nextPumpkinDelay, () => this.spawnPumpkin());
     }
-    if (this.state === "playing") this.register(result, hit.point, tool, pumpkin);
+    if (this.state === "playing") this.register(result, hit.point, tool, pumpkin, TOOLS.indexOf(tool));
   }
 
   /** Closest target whose bounds pass within AIM_ASSIST of the ray. */
@@ -321,13 +362,59 @@ export class Game {
     return { object: best.object, point };
   }
 
-  register(result, point, tool, pumpkin) {
-    if (result.type === "none") return;
+  // --- Combo --------------------------------------------------------------------
 
-    this.combo = this.elapsed - this.lastHitAt <= GAME.comboWindow ? this.combo + 1 : 1;
+  comboWindow() {
+    return Math.max(COMBO.minWindow, COMBO.window - this.combo * COMBO.tighten);
+  }
+
+  comboRank(combo = this.combo) {
+    let rank = null;
+    for (const [threshold, name] of COMBO.ranks) if (combo >= threshold) rank = name;
+    return rank;
+  }
+
+  comboMultiplier() {
+    return Math.min(COMBO.maxMultiplier, 1 + (this.combo - 1) * COMBO.multiplierStep);
+  }
+
+  /** Extends the combo for a landed hit and returns the point multiplier. */
+  extendCombo(toolIndex, point) {
+    const alive = this.combo > 0;
+    const before = this.combo;
+    this.combo += 1;
+    if (alive && this.lastTool !== null && toolIndex !== this.lastTool) {
+      this.combo += COMBO.switchBonus;
+      this.ui.popup(`${TEXT.switched} +${COMBO.switchBonus}`, point, this.camera);
+    }
+    this.lastTool = toolIndex;
     this.lastHitAt = this.elapsed;
     this.bestCombo = Math.max(this.bestCombo, this.combo);
-    const multiplier = Math.min(3, 1 + (this.combo - 1) * 0.1);
+    const rank = this.comboRank();
+    this.ui.setCombo(this.combo, rank, this.comboMultiplier(), { rankUp: rank !== this.comboRank(before) });
+    return this.comboMultiplier();
+  }
+
+  /** Ends the combo: banked (combo^2 bonus) when it runs out, lost on a miss. */
+  endCombo({ cashOut }) {
+    const combo = this.combo;
+    this.combo = 0;
+    this.lastTool = null;
+    this.ui.hideCombo();
+    if (combo < COMBO.minCashOut) return;
+    if (!cashOut) {
+      this.ui.showCashOut(`${TEXT.broken} · x${combo}`, { broken: true, combo });
+      return;
+    }
+    const bonus = Math.round(combo * combo * COMBO.cashOut);
+    this.score += bonus;
+    this.ui.setScore(this.score);
+    this.ui.showCashOut(`x${combo} ${this.comboRank(combo) ?? TEXT.combo}  +${bonus}`, { combo });
+  }
+
+  register(result, point, tool, pumpkin, toolIndex) {
+    if (result.type === "none") return;
+    const multiplier = this.extendCombo(toolIndex, point);
 
     let points = 0;
     if (result.type === "crack") points = GAME.hitScore;
@@ -337,7 +424,7 @@ export class Game {
       points = (result.pieces / live.pieces) * GAME.pieceScore * tool.scoreMult;
     }
     if (result.type === "break") {
-      points += GAME.breakScore * (pumpkin?.variant.bonus ?? 1);
+      points += GAME.breakScore * (pumpkin?.variant.bonus ?? 1) * tool.breakBonus;
       this.pumpkinsSmashed++;
       this.ui.setPumpkins(this.pumpkinsSmashed);
     }
@@ -349,7 +436,6 @@ export class Game {
     this.ui.setScore(this.score);
     const label = result.type === "dust" ? `${TEXT.dust} +${points}` : `+${points}`;
     this.ui.popup(label, point, this.camera, { blood: result.type === "break" });
-    this.ui.showCombo(this.combo);
   }
 
   // --- Loop ---------------------------------------------------------------------
@@ -390,6 +476,11 @@ export class Game {
 
     if (this.state === "playing") {
       if (this.pointerHeld) this.smash();
+      if (this.combo > 0) {
+        const left = 1 - (this.elapsed - this.lastHitAt) / this.comboWindow();
+        this.ui.setComboTimer(left);
+        if (left <= 0) this.endCombo({ cashOut: true });
+      }
       this.timeLeft -= dt;
       this.ui.setTimer(Math.max(0, Math.ceil(this.timeLeft)));
       if (this.timeLeft <= 0) this.endRound();
@@ -402,21 +493,46 @@ export class Game {
   }
 
   updateCamera(dt) {
-    // Gentle parallax towards the pointer plus decaying screen shake.
-    const sway = this.ui.pointer.touch || this.reducedMotion ? 0 : 1;
-    const target = CAMERA_HOME.clone();
-    target.x += this.ndc.x * 0.25 * sway;
-    target.y += this.ndc.y * 0.12 * sway;
-    this.camera.position.lerp(target, Math.min(1, dt * 3));
+    const target = _cameraTarget;
+    const look = _lookTarget;
+    let roll = 0;
+    if (this.cameraMode === "showcase") {
+      // Slow, layered sine drift and roll: the arcade attract-mode float.
+      const t = this.elapsed;
+      const drift = this.reducedMotion ? 0.3 : 1;
+      target.copy(SHOWCASE_POSITION);
+      target.x += Math.sin(t * 0.21) * 0.45 * drift;
+      target.y += Math.sin(t * 0.33) * 0.12 * drift;
+      target.z += Math.sin(t * 0.17) * 0.3 * drift;
+      look.copy(SHOWCASE_LOOK);
+      look.x += Math.sin(t * 0.19) * 0.6 * drift;
+      look.y += Math.sin(t * 0.27) * 0.25 * drift;
+      roll = Math.sin(t * 0.23) * 0.03 * drift;
+    } else {
+      // Gentle parallax towards the pointer.
+      const sway = this.ui.pointer.touch || this.reducedMotion ? 0 : 1;
+      target.copy(CAMERA_HOME);
+      target.x += this.ndc.x * 0.25 * sway;
+      target.y += this.ndc.y * 0.12 * sway;
+      look.copy(LOOK_AT);
+    }
+    const blend = 1 - Math.exp(-dt * (this.cameraMode === "showcase" ? 1.1 : 3));
+    this.cameraPosition.lerp(target, blend);
+    this.cameraLook.lerp(look, blend);
 
+    // Decaying screen shake on top of the smoothed pose.
     this.shake = Math.max(0, this.shake - dt * 2.8);
     const s = this.shake * this.shake * 0.12;
-    this.camera.lookAt(LOOK_AT);
+    this.camera.position.copy(this.cameraPosition);
     this.camera.position.x += (Math.random() - 0.5) * s;
     this.camera.position.y += (Math.random() - 0.5) * s;
-    this.camera.rotation.z += (Math.random() - 0.5) * s * 0.5;
+    this.camera.lookAt(this.cameraLook);
+    this.camera.rotation.z += roll + (Math.random() - 0.5) * s * 0.5;
   }
 }
+
+const _cameraTarget = new THREE.Vector3();
+const _lookTarget = new THREE.Vector3();
 
 function shuffle(list) {
   for (let i = list.length - 1; i > 0; i--) {
@@ -438,18 +554,18 @@ async function loadFonts() {
   }
 }
 
-function readBest() {
+function readNumber(key) {
   try {
-    return Number(localStorage.getItem(BEST_KEY)) || 0;
+    return Number(localStorage.getItem(key)) || 0;
   } catch {
     return 0;
   }
 }
 
-function writeBest(score) {
+function writeNumber(key, value) {
   try {
-    localStorage.setItem(BEST_KEY, String(score));
+    localStorage.setItem(key, String(value));
   } catch {
-    // Private mode: the best score just isn't remembered.
+    // Private mode: records just aren't remembered.
   }
 }

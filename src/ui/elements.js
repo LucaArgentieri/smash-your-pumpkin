@@ -155,6 +155,7 @@ export class UIText extends UIPanel {
     glow = "#ff4a10",
     intensity = 1.5,
     wobble = 0,
+    backdrop = null,
   }) {
     const pad = size * 0.45;
     const measured = measure(text, cssFont(font, size)) + pad * 2;
@@ -165,7 +166,7 @@ export class UIText extends UIPanel {
       anchor,
       intensity,
       wobble,
-      draw: (ctx, w, h, value) => drawText(ctx, w, h, value, { font, size, pad, colors, glow, anchor }),
+      draw: (ctx, w, h, value) => drawText(ctx, w, h, value, { font, size, pad, colors, glow, anchor, backdrop }),
     });
     this.text = text;
     this.redraw(text);
@@ -184,7 +185,17 @@ function measure(text, css) {
   return ctx.measureText(text).width;
 }
 
-function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor }) {
+function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor, backdrop }) {
+  if (backdrop) {
+    // Dark band behind the text so it reads over bright parts of the scene.
+    const band = ctx.createLinearGradient(0, 0, w, 0);
+    band.addColorStop(0, "rgba(0,0,0,0)");
+    band.addColorStop(0.15, backdrop);
+    band.addColorStop(0.85, backdrop);
+    band.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = band;
+    ctx.fillRect(0, 0, w, h);
+  }
   let px = size;
   ctx.font = cssFont(font, px);
   const available = w - pad * 2;

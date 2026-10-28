@@ -93,7 +93,8 @@ export class Destruction {
     const radius = fragment.geometry.boundingSphere.radius;
     const body = data.body;
 
-    if (radius < GAME.dustRadius || data.generation >= 5) {
+    // The fist grinds bigger shards to dust than the other weapons.
+    if (radius < (tool.dustRadius ?? GAME.dustRadius) || data.generation >= 5) {
       this.debris.burst(point, direction, 14, { force: 0.9, embers: 1.2 });
       this.removeFragment(fragment);
       return { type: "dust", pieces: 0 };
