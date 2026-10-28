@@ -1,4 +1,3 @@
-import { font, PALETTE } from "../config.js";
 import { UIPanel } from "./elements.js";
 
 // 12x12 pixel-art glyphs, inked onto the cards.
@@ -47,15 +46,6 @@ const ICONS = {
   ],
 };
 
-/** Filled and lightly stroked text, shrunk to fit `maxWidth`. */
-function inkText(ctx, text, x, y, face, size, maxWidth) {
-  ctx.font = font(face, size);
-  const width = ctx.measureText(text).width;
-  if (width > maxWidth) ctx.font = font(face, Math.floor((size * maxWidth) / width));
-  ctx.fillText(text, x, y);
-  ctx.strokeText(text, x, y);
-}
-
 function drawIcon(ctx, name, x, y, pixel, color) {
   ctx.fillStyle = color;
   ICONS[name].forEach((row, j) => {
@@ -65,89 +55,63 @@ function drawIcon(ctx, name, x, y, pixel, color) {
   });
 }
 
-// Deterministic speckles so each card looks handled but never changes.
-function rng(seed) {
-  let s = seed;
-  return () => ((s = (s * 16807) % 2147483647) / 2147483647);
+/**
+ * Weapon slot: just the weapon's silhouette in a dark ember-rimmed frame. No
+ * text; what each weapon does is for the player to find out.
+ */
+export function createWeaponSlot(tool) {
+  const size = 84;
+  const slot = new UIPanel({
+    width: size,
+    height: size,
+    intensity: 1.2,
+    draw: (ctx, w, h) => {
+      ctx.fillStyle = "rgba(18, 7, 6, 0.88)";
+      roundRect(ctx, 3, 3, w - 6, h - 6, 10);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 122, 40, 0.55)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      drawIcon(ctx, tool.icon, (w - 12 * 5) / 2, (h - 12 * 5) / 2, 5, "#f3e2c0");
+    },
+  });
+  slot.redraw();
+  slot.tool = tool;
+  return slot;
 }
 
-/** Inscryption-style parchment card for a tool. */
-export function createToolCard(tool, index) {
-  const width = 132;
-  const height = 186;
-  const card = new UIPanel({
-    width,
-    height,
-    intensity: 1.05,
+/** The weapon itself, following the pointer and swinging on every blow. */
+export function createWeaponCursor(tool) {
+  const size = 96;
+  const cursor = new UIPanel({
+    width: size,
+    height: size,
+    intensity: 1.8,
     draw: (ctx, w, h) => {
-      const r = rng(index * 977 + 13);
-
-      ctx.fillStyle = PALETTE.parchment;
-      ctx.fillRect(0, 0, w, h);
-      for (let i = 0; i < 260; i++) {
-        ctx.fillStyle = `rgba(${90 + r() * 60}, ${50 + r() * 30}, 20, ${r() * 0.12})`;
-        const s = 1 + r() * 7;
-        ctx.fillRect(r() * w, r() * h, s, s);
+      const pixel = 6.5;
+      const x = (w - 12 * pixel) / 2;
+      const y = (h - 12 * pixel) / 2;
+      // Dark outline first (the icon offset in 8 directions), then the bone fill.
+      for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, 1], [-1, 1], [1, -1]]) {
+        drawIcon(ctx, tool.icon, x + dx * 2.5, y + dy * 2.5, pixel, "#1a0806");
       }
-
-      // Frame and name banner.
-      ctx.strokeStyle = PALETTE.ink;
-      ctx.lineWidth = 5;
-      ctx.strokeRect(2.5, 2.5, w - 5, h - 5);
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(9, 9, w - 18, h - 18);
-      ctx.fillStyle = "rgba(60, 25, 10, 0.18)";
-      ctx.fillRect(9, 9, w - 18, 34);
-
-      // Name in the same gothic face as the titles, set large and heavy.
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = PALETTE.ink;
-      ctx.strokeStyle = PALETTE.ink;
-      ctx.lineWidth = 0.9;
-      inkText(ctx, tool.name, w / 2, 28, "title", 32, w - 26);
-
-      // Portrait box.
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(18, 48, w - 36, 80);
-      drawIcon(ctx, tool.icon, w / 2 - 33, 53, 5.5, PALETTE.ink);
-
-      // What the weapon is for, instead of abstract stats.
-      ctx.fillStyle = "#5a1a0c";
-      ctx.strokeStyle = "#5a1a0c";
-      ctx.lineWidth = 0.5;
-      inkText(ctx, tool.role, w / 2, 146, "title", 18, w - 24);
-
-      // Hotkey.
-      ctx.fillStyle = "rgba(26, 13, 10, 0.55)";
-      ctx.font = font("numbers", 22);
-      ctx.fillText(String(index + 1), w / 2, h - 18);
+      drawIcon(ctx, tool.icon, x, y, pixel, "#f6e6c4");
     },
   });
-  card.redraw();
-  card.tool = tool;
-  return card;
+  cursor.redraw();
+  cursor.renderOrder = 100;
+  cursor.swing = 0;
+  return cursor;
 }
 
-/** Draining bar under the combo: the time left to land the next hit. */
-export function createComboBar() {
-  const bar = new UIPanel({
-    width: 300,
-    height: 16,
-    intensity: 2.2,
-    draw: (ctx, w, h) => {
-      const gradient = ctx.createLinearGradient(0, 0, w, 0);
-      gradient.addColorStop(0, "#ff3a0a");
-      gradient.addColorStop(1, "#ffd27a");
-      ctx.fillStyle = "rgba(20, 6, 4, 0.9)";
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = gradient;
-      ctx.fillRect(3, 3, w - 6, h - 6);
-    },
-  });
-  bar.redraw();
-  bar.fill = 1;
-  return bar;
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 /** Cursor reticle drawn on the UI layer (the system cursor is hidden). */

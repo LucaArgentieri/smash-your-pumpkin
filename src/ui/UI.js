@@ -2,7 +2,7 @@ import * as THREE from "three/webgpu";
 import { TEXT, TOOLS } from "../config.js";
 import { tweens, ease } from "../core/Tween.js";
 import { UIText } from "./elements.js";
-import { createComboBar, createReticle, createToolCard } from "./cards.js";
+import { createReticle, createWeaponCursor, createWeaponSlot } from "./cards.js";
 
 const VIOLET = { colors: ["#e3d6ff", "#9b7bff"], glow: "#4a1f8a", intensity: 1.25 };
 const BLOOD = { colors: ["#ffb08a", "#ff2a10"], glow: "#ff1a00" };
@@ -29,30 +29,26 @@ export class UI {
     this.title1 = add(new UIText({ text: TEXT.title[0], font: "title", size: 150, wobble: 0.012 }));
     this.title2 = add(new UIText({ text: TEXT.title[1], font: "title", size: 80, wobble: 0.012 }));
     this.tagline = add(new UIText({ text: TEXT.tagline, size: 22, ...VIOLET }));
-    this.rules = TEXT.rules.map((line) => add(new UIText({ text: line, size: 17, colors: ["#ffe9c4", "#ffb36a"], glow: "#5a1f0a", intensity: 1.2, backdrop: "rgba(8, 3, 12, 0.72)" })));
     this.begin = add(new UIText({ text: TEXT.begin, font: "title", size: 66, wobble: 0.03 }));
-    // Describes the selected weapon; also flashes up mid-round on a switch.
-    this.hint = add(new UIText({ text: "", size: 18, width: 520, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.72)" }));
     this.loading = add(new UIText({ text: TEXT.loading, font: "title", size: 54, width: 700, wobble: 0.03 }));
     this.qualityLabel = add(new UIText({ text: "", size: 16, anchor: "left", width: 260, ...VIOLET }));
 
     // HUD.
     this.timer = add(new UIText({ text: "60", font: "numbers", size: 104, width: 220 }));
     this.scoreLabel = add(new UIText({ text: TEXT.score, size: 20, anchor: "left", width: 200, ...VIOLET }));
-    this.scoreValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "left", width: 260 }));
+    this.scoreValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "left", width: 210 }));
     this.pumpkinsLabel = add(new UIText({ text: TEXT.pumpkins, size: 20, anchor: "right", width: 200, ...VIOLET }));
     this.pumpkinsValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "right", width: 160 }));
     // Combo, split like Balatro's chips x mult: count, multiplier and rank.
     this.comboCount = add(new UIText({ text: "x2", font: "numbers", size: 64, anchor: "right", width: 300 }));
     this.comboMult = add(new UIText({ text: "1.05x", font: "numbers", size: 56, anchor: "left", width: 320, ...BLOOD }));
     this.comboRank = add(new UIText({ text: "", font: "title", size: 38, width: 560, wobble: 0.03 }));
-    this.comboBar = add(createComboBar());
     this.cashOut = add(new UIText({ text: "", font: "title", size: 46, width: 760, wobble: 0.03 }));
     this.comboCount.heatGain = 0.8;
     this.comboMult.heatGain = 1;
     this.comboRank.heatGain = 0.5;
     for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) el.sway = 0.04;
-    this.comboParts = [this.comboCount, this.comboMult, this.comboRank, this.comboBar];
+    this.comboParts = [this.comboCount, this.comboMult, this.comboRank];
     this.heat = 0;
     this.displayScore = 0;
     this.targetScore = 0;
@@ -71,13 +67,16 @@ export class UI {
     this.recordLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" }));
     this.again = add(new UIText({ text: TEXT.again, font: "title", size: 76, wobble: 0.03 }));
 
-    // Tool cards.
-    this.cards = TOOLS.map((tool, i) => {
-      const card = add(createToolCard(tool, i));
-      card.lift = 0;
-      return card;
+    // Weapon slots (only during a round) and the weapon that follows the
+    // pointer. No explanations: players learn each weapon by using it.
+    this.slots = TOOLS.map((tool) => {
+      const slot = add(createWeaponSlot(tool));
+      slot.lift = 0;
+      return slot;
     });
+    this.weapons = TOOLS.map((tool) => add(createWeaponCursor(tool)));
     this.selected = 0;
+    this.playing = false;
 
     this.popups = Array.from({ length: 10 }, () => {
       const p = add(new UIText({ text: "", font: "numbers", size: 44, width: 280 }));
@@ -99,7 +98,8 @@ export class UI {
   layout(w, h) {
     this.w = w;
     this.h = h;
-    const k = (this.k = Math.min(1.3, Math.max(0.5, Math.min(w / 640, h / 720))));
+    // Narrow screens get relatively larger UI so text stays readable on phones.
+    const k = (this.k = Math.min(1.3, Math.max(0.5, Math.min(w / 520, h / 720))));
     Object.assign(this.camera, { left: -w / 2, right: w / 2, top: h / 2, bottom: -h / 2 });
     this.camera.updateProjectionMatrix();
 
@@ -121,27 +121,23 @@ export class UI {
     place(this.title1, 0, top - 125 * k);
     place(this.title2, 0, top - 230 * k);
     place(this.tagline, 0, top - 290 * k);
-    this.rules.forEach((line, i) => place(line, 0, top - 314 * k - i * 21 * k));
-    place(this.begin, 0, bottom + 296 * k);
-    // Clear of the selected card, which lifts above its row.
-    place(this.hint, 0, bottom + 250 * k);
+    place(this.begin, 0, bottom + 150 * k);
     place(this.loading, 0, 0);
     // Top-left: only shown on title and results, when the HUD is hidden.
     place(this.qualityLabel, left + margin * 0.6, top - Math.max(16, 20 * k), w * 0.5);
 
     place(this.timer, 0, top - 70 * k);
     place(this.scoreLabel, left + margin, top - 34 * k);
-    place(this.scoreValue, left + margin, top - 80 * k, w / 2 - margin - 110 * k);
+    place(this.scoreValue, left + margin, top - 80 * k, w / 2 - margin - 60 * k);
     place(this.pumpkinsLabel, right - margin, top - 34 * k);
-    place(this.pumpkinsValue, right - margin, top - 80 * k, w / 2 - margin - 110 * k);
+    place(this.pumpkinsValue, right - margin, top - 80 * k, w / 2 - margin - 60 * k);
     place(this.comboCount, -10 * k, top - 165 * k, w / 2 - margin);
     place(this.comboMult, 10 * k, top - 165 * k, w / 2 - margin);
     place(this.comboRank, 0, top - 250 * k);
-    place(this.comboBar, 0, top - 282 * k);
     place(this.cashOut, 0, top - 330 * k);
     place(this.big, 0, 40 * k);
 
-    // Results hide the cards, so they can use the whole height.
+    // Results hide the weapon slots, so they can use the whole height.
     place(this.resultsTitle, 0, top - 100 * k);
     const column = Math.min(520 * k, fitWidth);
     this.rows.forEach((row, i) => {
@@ -154,12 +150,12 @@ export class UI {
     place(this.recordLine, 0, top - 452 * k);
     place(this.again, 0, bottom + 120 * k);
 
-    const spacing = Math.min(150 * k, (w - margin * 2) / 3);
-    this.cards.forEach((card, i) => {
-      place(card, (i - 1) * spacing, bottom + 115 * k);
-      card.baseScale = Math.min(k, (spacing * 0.92) / card.boxWidth);
-      this.applyScale(card);
-    });
+    const spacing = 100 * k;
+    this.slots.forEach((slot, i) => place(slot, (i - 1) * spacing, bottom + 70 * k));
+    for (const weapon of this.weapons) {
+      weapon.layoutScale = k;
+      this.heatScale(weapon);
+    }
   }
 
   /** Layout scale grown by the current heat, never wider than its slot. */
@@ -183,11 +179,7 @@ export class UI {
     this.title1.show({ duration: 1.3, delay: 0.2 });
     this.title2.show({ duration: 1.1, delay: 0.7 });
     this.tagline.show({ duration: 1, delay: 1.2 });
-    this.rules.forEach((line, i) => line.show({ duration: 0.8, delay: 1.4 + i * 0.15 }));
-    this.begin.show({ duration: 0.9, delay: 1.9 });
-    this.describeTool(this.selected);
-    this.hint.show({ duration: 0.8, delay: 2.1 });
-    this.showCards(1.9);
+    this.begin.show({ duration: 0.9, delay: 1.6 });
     this.qualityLabel.show({ duration: 0.6, delay: 2.2 });
   }
 
@@ -204,18 +196,31 @@ export class UI {
   }
 
   hideTitle() {
-    [this.title1, this.title2, this.tagline, ...this.rules, this.begin, this.hint, this.qualityLabel].forEach((el, i) =>
+    [this.title1, this.title2, this.tagline, this.begin, this.qualityLabel].forEach((el, i) =>
       el.hide({ duration: 0.5, delay: i * 0.05 }),
     );
   }
 
-  showCards(delay = 0) {
-    this.cards.forEach((card, i) => card.show({ duration: 0.7, delay: delay + i * 0.12 }));
-    this.select(this.selected);
+  /** Round on/off: weapon slots appear and the pointer becomes the weapon. */
+  setPlaying(playing) {
+    this.playing = playing;
+    this.slots.forEach((slot, i) =>
+      playing ? slot.show({ duration: 0.6, delay: i * 0.1 }) : slot.hide({ duration: 0.5, delay: i * 0.08 }),
+    );
+    if (playing) this.select(this.selected);
+    else this.weapons.forEach((w) => w.hide({ duration: 0.3 }));
   }
 
-  hideCards() {
-    this.cards.forEach((card, i) => card.hide({ duration: 0.5, delay: i * 0.08 }));
+  /** A swing: the weapon strikes (on touch it appears where you tapped). */
+  strike() {
+    const weapon = this.weapons[this.selected];
+    weapon.swing = 1;
+    if (this.pointer.touch) {
+      weapon.u.reveal.value = 1;
+      tweens.kill(weapon.u.reveal, "value");
+      if (this.strikeTimer) tweens.cancel(this.strikeTimer);
+      this.strikeTimer = tweens.after(0.3, () => weapon.hide({ duration: 0.25 }));
+    }
   }
 
   showHUD() {
@@ -225,7 +230,7 @@ export class UI {
   }
 
   hideHUD() {
-    [this.timer, this.scoreLabel, this.scoreValue, this.pumpkinsLabel, this.pumpkinsValue, ...this.comboParts, this.hint].forEach((el) =>
+    [this.timer, this.scoreLabel, this.scoreValue, this.pumpkinsLabel, this.pumpkinsValue, ...this.comboParts].forEach((el) =>
       el.hide({ duration: 0.5 }),
     );
   }
@@ -247,7 +252,6 @@ export class UI {
   }
 
   showResults({ score, pumpkins, shards, bestCombo, best, isBest, comboRecord, isComboRecord }) {
-    this.hideCards();
     this.resultsTitle.show({ duration: 1.4, delay: 0.1 });
     const values = [pumpkins, shards, `x${bestCombo}`];
     this.rows.forEach((row, i) => {
@@ -333,12 +337,6 @@ export class UI {
     }
   }
 
-  /** Fraction of the combo window left, drawn as the draining bar. */
-  setComboTimer(fraction) {
-    this.comboBar.fill = Math.max(0, fraction);
-    this.applyScale(this.comboBar);
-  }
-
   hideCombo() {
     this.heat = 0;
     for (const el of this.comboParts) el.hide({ duration: 0.4 });
@@ -358,17 +356,6 @@ export class UI {
     el.show({ duration: 0.2 });
     if (this.cashOutTimer) tweens.cancel(this.cashOutTimer);
     this.cashOutTimer = tweens.after(1.3, () => el.hide({ duration: 0.6 }));
-  }
-
-  /** Shows what the selected weapon is for under the cards. */
-  describeTool(index, { flash = false } = {}) {
-    const tool = TOOLS[index];
-    this.hint.setText(`${tool.name} · ${tool.description}`);
-    if (!flash) return;
-    this.hint.u.reveal.value = 0;
-    this.hint.show({ duration: 0.25 });
-    if (this.hintTimer) tweens.cancel(this.hintTimer);
-    this.hintTimer = tweens.after(2.4, () => this.hint.hide({ duration: 0.5 }));
   }
 
   /** Floating "+120" burnt into the air at a world position. */
@@ -396,9 +383,14 @@ export class UI {
 
   select(index) {
     this.selected = index;
-    this.cards.forEach((card, i) => {
-      tweens.to(card.u.highlight, "value", i === index ? 1 : 0, 0.25);
+    this.slots.forEach((slot, i) => {
+      tweens.to(slot.u.highlight, "value", i === index ? 1 : 0, 0.2);
+      tweens.to(slot.u.intensity, "value", i === index ? 1.6 : 0.7, 0.2);
     });
+    this.weapons.forEach((weapon, i) => {
+      if (i !== index) weapon.u.reveal.value = 0;
+    });
+    this.punch(this.slots[index], 0.6);
   }
 
   movePointer(x, y, touch) {
@@ -406,11 +398,11 @@ export class UI {
     this.pointer.y = y;
     this.pointer.touch = touch;
     this.pointer.seen = true;
-    for (const card of this.cards) {
-      const over = !touch && card.contains(x, y);
-      if (over !== card.hovered) {
-        card.hovered = over;
-        tweens.to(card.u.hover, "value", over ? 0.5 : 0, 0.15);
+    for (const slot of this.slots) {
+      const over = !touch && slot.contains(x, y);
+      if (over !== slot.hovered) {
+        slot.hovered = over;
+        tweens.to(slot.u.hover, "value", over ? 0.5 : 0, 0.15);
       }
     }
     for (const button of [this.begin, this.again, this.qualityLabel]) {
@@ -424,8 +416,8 @@ export class UI {
 
   /** Returns the UI action under the pointer, if any. */
   pick(x, y) {
-    const card = this.cards.findIndex((c) => c.contains(x, y));
-    if (card !== -1) return { type: "tool", index: card };
+    const slot = this.slots.findIndex((c) => c.contains(x, y, 10));
+    if (slot !== -1) return { type: "tool", index: slot };
     if (this.begin.contains(x, y, 20)) return { type: "begin" };
     if (this.qualityLabel.contains(x, y, 12)) return { type: "quality" };
     if (this.again.contains(x, y, 20)) return { type: "again" };
@@ -445,16 +437,36 @@ export class UI {
         this.applyScale(el);
       }
     }
-    for (const [i, card] of this.cards.entries()) {
-      const target = (i === this.selected ? 22 : 0) + (card.hovered ? 8 : 0);
-      card.lift += (target - card.lift) * Math.min(1, dt * 12);
-      card.position.y = card.home.y + card.lift * this.k;
+    for (const [i, slot] of this.slots.entries()) {
+      const target = (i === this.selected ? 14 : 0) + (slot.hovered ? 5 : 0);
+      slot.lift += (target - slot.lift) * Math.min(1, dt * 12);
+      slot.position.y = slot.home.y + slot.lift * this.k;
     }
-    this.reticle.visible = !this.pointer.touch && this.pointer.seen;
-    this.reticle.position.set(this.pointer.x, this.pointer.y, 0);
+    this.updateWeapon(dt);
 
     this.time = (this.time ?? 0) + dt;
     this.updateJuice(dt);
+  }
+
+  /**
+   * During a round the pointer is the selected weapon (on touch it only
+   * shows up on a tap); otherwise a small reticle.
+   */
+  updateWeapon(dt) {
+    const { x, y, touch, seen } = this.pointer;
+    const weapon = this.weapons[this.selected];
+    const mouseWeapon = this.playing && !touch && seen;
+    this.reticle.visible = !this.playing && !touch && seen;
+    this.reticle.position.set(x, y, 0);
+    if (mouseWeapon) weapon.u.reveal.value = 1;
+
+    // Resting tilted back, snapping forward on a blow, the head over the pointer.
+    weapon.swing = Math.max(0, weapon.swing - dt * 6);
+    const s = weapon.swing;
+    weapon.rotation.z = -0.35 + Math.sin(s * Math.PI * 0.5) * 1.05;
+    weapon.position.set(x + 26 * this.k, y - 22 * this.k, 0);
+    weapon.punch = s * 0.6;
+    this.applyScale(weapon);
   }
 
   /** Sway and shake of hot text, and the rolling score counter. */

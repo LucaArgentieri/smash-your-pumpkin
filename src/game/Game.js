@@ -158,6 +158,14 @@ export class Game {
     window.addEventListener("pointercancel", release);
     window.addEventListener("blur", release);
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (this.state !== "playing" || e.deltaY === 0) return;
+        this.selectTool((this.tool + Math.sign(e.deltaY) + TOOLS.length) % TOOLS.length);
+      },
+      { passive: true },
+    );
     window.addEventListener("keydown", (e) => this.onKey(e));
   }
 
@@ -197,7 +205,6 @@ export class Game {
     if (index === this.tool && this.state === "playing") return;
     this.tool = index;
     this.ui.select(index);
-    this.ui.describeTool(index, { flash: this.state === "playing" });
   }
 
   // --- Round flow ---------------------------------------------------------------
@@ -206,8 +213,8 @@ export class Game {
     if (this.state === "title") this.ui.hideTitle();
     else {
       this.ui.hideResults();
-      this.ui.showCards(0.3);
     }
+    this.ui.setPlaying(true);
     this.dim(0);
     this.cameraMode = "play";
     this.turnPumpkin(0);
@@ -245,6 +252,7 @@ export class Game {
     }
     await this.ui.announce(TEXT.timeUp, { hold: 0.9, style: "blood" });
     this.ui.hideHUD();
+    this.ui.setPlaying(false);
     // The leaderboard shot: lighter dimming so the scene stays part of it.
     this.dim(0.35);
     this.cameraMode = "showcase";
@@ -311,6 +319,7 @@ export class Game {
     this.raycaster.setFromCamera(this.ndc, this.camera);
     const targets = this.destruction.targets(this.pumpkin);
     const hit = this.raycaster.intersectObjects(targets, false)[0] ?? this.nearMiss(targets);
+    if (hit || deliberate) this.ui.strike();
     if (!hit) {
       // A deliberate swing at nothing breaks the combo (no cash-out). Held
       // swings sweeping over empty table are only throttled.
@@ -389,10 +398,18 @@ export class Game {
     }
     this.lastTool = toolIndex;
     this.lastHitAt = this.elapsed;
+    this.renderer.uniforms.fireTint.value.setRGB(1, 1, 1);
     this.bestCombo = Math.max(this.bestCombo, this.combo);
     const rank = this.comboRank();
     this.ui.setCombo(this.combo, rank, this.comboMultiplier(), { rankUp: rank !== this.comboRank(before) });
     return this.comboMultiplier();
+  }
+
+  /** The fire vignette follows the combo's heat and eases out when it ends. */
+  updateFire(dt) {
+    const fire = this.renderer.uniforms.fire;
+    const target = this.combo >= 2 ? 0.35 + this.ui.heatFor(this.combo) * 0.65 : 0;
+    fire.value += (target - fire.value) * Math.min(1, dt * (target > fire.value ? 8 : 2.5));
   }
 
   /** Ends the combo: banked (combo^2 bonus) when it runs out, lost on a miss. */
@@ -402,6 +419,11 @@ export class Game {
     this.lastTool = null;
     this.ui.hideCombo();
     if (combo < COMBO.minCashOut) return;
+    // Banked: a last flare of flames rushing in; broken: a dull red snuff.
+    const u = this.renderer.uniforms;
+    u.fire.value = cashOut ? 1 + this.ui.heatFor(combo) : 0.8;
+    u.fireLeft.value = cashOut ? 0.15 : 0.5;
+    u.fireTint.value.setRGB(...(cashOut ? [1, 1, 1] : [0.55, 0.12, 0.25]));
     if (!cashOut) {
       this.ui.showCashOut(`${TEXT.broken} · x${combo}`, { broken: true, combo });
       return;
@@ -478,7 +500,7 @@ export class Game {
       if (this.pointerHeld) this.smash();
       if (this.combo > 0) {
         const left = 1 - (this.elapsed - this.lastHitAt) / this.comboWindow();
-        this.ui.setComboTimer(left);
+        this.renderer.uniforms.fireLeft.value = Math.max(0, left);
         if (left <= 0) this.endCombo({ cashOut: true });
       }
       this.timeLeft -= dt;
@@ -486,6 +508,7 @@ export class Game {
       if (this.timeLeft <= 0) this.endRound();
     }
 
+    this.updateFire(dt);
     this.updateCamera(dt);
     const flash = this.renderer.uniforms.flash;
     flash.value = Math.max(0, flash.value - dt * 3);

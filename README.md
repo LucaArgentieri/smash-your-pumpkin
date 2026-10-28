@@ -3,11 +3,13 @@
 A Halloween rage room, successor to [paint-your-pumpkin](https://github.com/LucaArgentieri/paint-your-pumpkin).
 You sit at a table in a candlelit cabin and have 60 seconds to smash as many pumpkins as you can.
 
-Each card has a role:
+There is no tutorial: the weapons (keys 1–3, mouse wheel, or the slots at the bottom) are meant to be
+figured out by playing. The pointer becomes the selected weapon and swings with every blow. For
+reference:
 
-- **Fist** (1), *the grinder*: fast, cracks a pumpkin in three hits and grinds small shards into **dust** for a bonus.
-- **Mallet** (2), *the breaker*: slow, shatters a whole pumpkin in one blow, pumpkin bonus x2.
-- **Axe** (3), *the splitter*: cuts pumpkins and shards in two, x2 points per piece.
+- **Fist**: fast, cracks a pumpkin in three hits and grinds small shards into **dust** for a bonus.
+- **Mallet**: slow, shatters a whole pumpkin in one blow, pumpkin bonus x2.
+- **Axe**: cuts pumpkins and shards in two, x2 points per piece.
 
 ### The combo
 
@@ -15,7 +17,9 @@ The combo is where high scores come from:
 
 - Every hit inside the combo window extends it and raises the point multiplier (up to x3).
 - Switching weapon mid-combo adds +2.
-- The window tightens as the combo grows (1.1 s down to 0.55 s), shown by the bar under the counter.
+- The window tightens as the combo grows (1.1 s down to 0.55 s). Instead of a timer bar, a pixelated
+  wall of fire closes in from the screen edges as the window runs out, charring the room behind it and
+  throbbing red when time is nearly gone. Banking the combo makes it flare; a miss snuffs it dull red.
 - Let it run out and it is **cashed in** for combo² × 3 points. Click empty table and it **breaks** for nothing.
 - Ranks: WICKED (5), GRIM (10), GHASTLY (20), UNHOLY (35), DAMNED (50), APOCALYPTIC (80).
 - The best score and the combo record are kept in the browser.
