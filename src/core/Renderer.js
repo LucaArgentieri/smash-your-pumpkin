@@ -23,9 +23,6 @@ import {
 } from "three/tsl";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 
-// Vertical resolution the 3D scene is rendered at before being upscaled with
-// nearest filtering: the chunky, low-fi look of the references.
-const SCENE_LINES = 400;
 
 // 2x2 Bayer: (0,0)=0 (1,0)=2 (0,1)=3 (1,1)=1, i.e. (2x + 3y) mod 4.
 const bayer2 = (x, y) => mod(x.mul(2).add(y.mul(3)), 4);
@@ -44,8 +41,7 @@ const bayer4 = (cell) => {
  */
 export class Renderer {
   constructor({ scene, camera, uiScene, uiCamera }) {
-    this.renderer = new THREE.WebGPURenderer({ antialias: false, alpha: false });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer = new THREE.WebGPURenderer({ antialias: false, alpha: false, powerPreference: "high-performance" });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -71,12 +67,52 @@ export class Renderer {
 
     this.pipeline = new THREE.RenderPipeline(this.renderer);
     this.pipeline.outputColorTransform = false;
-    this.pipeline.outputNode = this.buildOutput();
 
+    // Vertical resolution the 3D scene is rendered at before being upscaled
+    // with nearest filtering: the chunky look of the references, and the
+    // main reason the scene stays cheap on weak GPUs.
+    this.sceneLines = 400;
+    this.maxPixelRatio = 2;
+    this.bloomScale = null;
+  }
+
+  /** Applies a quality preset (see core/Quality.js). */
+  setQuality({ pixelRatio, sceneLines, bloom }) {
+    this.maxPixelRatio = pixelRatio;
+    this.sceneLines = sceneLines;
+    if (bloom !== this.bloomScale) {
+      this.bloomScale = bloom;
+      this.pipeline.outputNode = this.buildOutput(bloom);
+      this.pipeline.needsUpdate = true;
+    }
     this.resize();
   }
 
-  buildOutput() {
+  /**
+   * Renders `node` (a function of uv()) once into a texture, so expensive
+   * procedural patterns cost a texture fetch at draw time instead of noise.
+   */
+  bake(node, width, height) {
+    const target = new THREE.RenderTarget(width, height, {
+      type: THREE.UnsignedByteType,
+      generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter,
+      magFilter: THREE.LinearFilter,
+      wrapS: THREE.RepeatWrapping,
+      wrapT: THREE.ClampToEdgeWrapping,
+    });
+    const material = new THREE.MeshBasicNodeMaterial();
+    material.colorNode = node;
+    const quad = new THREE.QuadMesh(material);
+    const previous = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(target);
+    quad.render(this.renderer);
+    this.renderer.setRenderTarget(previous);
+    material.dispose();
+    return target.texture;
+  }
+
+  buildOutput(bloomScale) {
     const u = this.uniforms;
     const sceneColor = this.scenePass.getTextureNode();
     const uiColor = this.uiPass.getTextureNode();
@@ -93,8 +129,16 @@ export class Renderer {
     const room = vec3(r, g, b).mul(float(1).sub(u.dim.mul(0.5)));
     const composite = room.mul(float(1).sub(ui.a)).add(ui.rgb);
 
-    const glow = bloom(composite, 0.85, 0.55, 0.62);
-    let color = composite.add(glow.rgb);
+    let color = composite;
+    if (bloomScale > 0) {
+      const glow = bloom(composite, 0.85, 0.55, 0.62);
+      glow.setResolutionScale(bloomScale);
+      color = color.add(glow.rgb);
+    } else {
+      // No bloom on weak GPUs: lift the hottest pixels a little instead so
+      // flames and carved faces still read as glowing.
+      color = color.add(max(color.sub(0.8), 0).mul(0.6));
+    }
 
     // Hit flash and a slow candle-like breathing of the whole frame.
     const breathe = sin(time.mul(1.7)).mul(sin(time.mul(2.9))).mul(0.025).add(1);
@@ -126,9 +170,10 @@ export class Renderer {
   resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.maxPixelRatio));
     this.renderer.setSize(w, h);
     const drawingHeight = h * this.renderer.getPixelRatio();
-    const scale = Math.min(1, Math.max(0.2, SCENE_LINES / drawingHeight));
+    const scale = Math.min(1, Math.max(0.1, this.sceneLines / drawingHeight));
     this.scenePass.setResolutionScale(scale);
     this.uniforms.pixelSize.value = 1 / scale;
   }

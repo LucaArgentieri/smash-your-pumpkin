@@ -1,4 +1,4 @@
-import { FONTS, PALETTE } from "../config.js";
+import { font, PALETTE } from "../config.js";
 import { UIPanel } from "./elements.js";
 
 // 12x12 / 8x8 pixel-art glyphs, inked onto the cards.
@@ -111,7 +111,7 @@ export function createToolCard(tool, index) {
       ctx.fillRect(9, 9, w - 18, 30);
 
       ctx.fillStyle = PALETTE.ink;
-      ctx.font = `30px ${FONTS.title}`;
+      ctx.font = font("title", 26);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(tool.name, w / 2, 26);
@@ -121,17 +121,17 @@ export function createToolCard(tool, index) {
       drawIcon(ctx, tool.icon, w / 2 - 33, 52, 5.5, PALETTE.ink);
 
       // Stats: power bottom-left, speed bottom-right, like attack / health.
-      ctx.font = `bold 26px ${FONTS.body}`;
+      ctx.font = font("numbers", 34);
       drawIcon(ctx, "skull", 16, 142, 3, "#5a1a0c");
       ctx.fillStyle = PALETTE.ink;
       ctx.textAlign = "left";
-      ctx.fillText(String(tool.stats.power), 44, 155);
+      ctx.fillText(String(tool.stats.power), 44, 150);
       drawIcon(ctx, "bolt", w - 42, 142, 3, "#5a1a0c");
       ctx.textAlign = "right";
-      ctx.fillText(String(tool.stats.speed), w - 48, 155);
+      ctx.fillText(String(tool.stats.speed), w - 48, 150);
 
       // Hotkey.
-      ctx.font = `14px ${FONTS.body}`;
+      ctx.font = font("body", 14);
       ctx.textAlign = "center";
       ctx.fillStyle = "rgba(26, 13, 10, 0.6)";
       ctx.fillText(`[${index + 1}]`, w / 2, h - 16);

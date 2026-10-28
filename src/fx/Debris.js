@@ -1,9 +1,13 @@
 import * as THREE from "three/webgpu";
 import { color, instanceIndex, hash, mix, float, vec3 } from "three/tsl";
+import { live } from "../core/Quality.js";
 
 const GRAVITY = -9.8;
 const FLOOR = 0.02;
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+const _matrix = new THREE.Matrix4();
+const _quaternion = new THREE.Quaternion();
+const _scale = new THREE.Vector3();
 
 /**
  * Cheap CPU particles for the juicy bits: flesh chunks and seeds that bounce on
@@ -11,8 +15,17 @@ const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
  */
 export class Debris {
   constructor(scene) {
-    this.chunks = this.createPool(scene, 500, new THREE.BoxGeometry(1, 1, 1), this.chunkMaterial(), true);
-    this.embers = this.createPool(scene, 260, new THREE.OctahedronGeometry(1, 0), this.emberMaterial(), false);
+    this.chunks = this.createPool(scene, 400, new THREE.BoxGeometry(1, 1, 1), this.chunkMaterial());
+    this.embers = this.createPool(scene, 200, new THREE.OctahedronGeometry(1, 0), this.emberMaterial());
+    // One short-lived particle each, hidden under the table, so both shaders
+    // compile during loading instead of on the first hit.
+    for (const pool of [this.chunks, this.embers]) {
+      const p = this.spawn(pool);
+      p.position.set(0, -1, 0);
+      p.velocity.set(0, 0, 0);
+      p.size = 0.01;
+      p.life = p.maxLife = 0.5;
+    }
   }
 
   chunkMaterial() {
@@ -31,11 +44,10 @@ export class Debris {
     return material;
   }
 
-  createPool(scene, count, geometry, material, shadows) {
+  createPool(scene, count, geometry, material) {
     const mesh = new THREE.InstancedMesh(geometry, material, count);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.frustumCulled = false;
-    mesh.castShadow = shadows;
     for (let i = 0; i < count; i++) mesh.setMatrixAt(i, ZERO);
     scene.add(mesh);
     return {
@@ -51,11 +63,13 @@ export class Debris {
         maxLife: 1,
       })),
       cursor: 0,
+      alive: 0,
     };
   }
 
   /** Burst at `point`, biased along `direction` (usually away from the camera). */
   burst(point, direction, amount = 20, { force = 1, embers = 0.5 } = {}) {
+    amount = Math.round(amount * live.debris);
     for (let i = 0; i < amount; i++) {
       const p = this.spawn(this.chunks);
       p.position.copy(point);
@@ -82,6 +96,7 @@ export class Debris {
   spawn(pool) {
     const p = pool.particles[pool.cursor];
     pool.cursor = (pool.cursor + 1) % pool.particles.length;
+    if (!p.alive) pool.alive++;
     p.alive = true;
     p.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
     p.spin.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(14);
@@ -94,9 +109,12 @@ export class Debris {
   }
 
   step(pool, dt, gravity, bounce) {
-    const matrix = new THREE.Matrix4();
-    const quaternion = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
+    // Nothing flying: no simulation, no matrix upload, no draw call.
+    pool.mesh.visible = pool.alive > 0;
+    if (pool.alive === 0) return;
+    const matrix = _matrix;
+    const quaternion = _quaternion;
+    const scale = _scale;
     // Slots are never compacted so instanceIndex (and the colour hashed from
     // it) stays stable for a particle's whole life; dead ones collapse to 0.
     pool.particles.forEach((p, i) => {
@@ -104,6 +122,7 @@ export class Debris {
       p.life -= dt;
       if (p.life <= 0) {
         p.alive = false;
+        pool.alive--;
         pool.mesh.setMatrixAt(i, ZERO);
         return;
       }

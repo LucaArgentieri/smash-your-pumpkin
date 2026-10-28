@@ -1,8 +1,9 @@
 import * as THREE from "three/webgpu";
 import { DestructibleMesh } from "@dgreenheck/three-pinata";
+import { live } from "../core/Quality.js";
 import { tweens, ease } from "../core/Tween.js";
-import { createBodyGeometry, createStemGeometry, loadModelGeometry, stemAnchor } from "./geometry.js";
 import { getPumpkinMaterials } from "./materials.js";
+import { loadPumpkinModel } from "./models.js";
 
 const PRE_FRACTURE_PIECES = 18;
 const HP = 3;
@@ -13,28 +14,27 @@ const HP = 3;
  */
 export class Pumpkin {
   static async create(variant, ctx) {
-    const geometry = variant.model ? await loadModelGeometry(variant) : createBodyGeometry(variant);
-    return new Pumpkin(variant, geometry, ctx);
+    return new Pumpkin(variant, await loadPumpkinModel(variant), ctx);
   }
 
-  constructor(variant, geometry, { scene, physics, pool }) {
+  constructor(variant, model, { scene, physics, pool }) {
+    const geometry = model.body;
     this.variant = variant;
     this.scene = scene;
     this.physics = physics;
     this.hp = HP;
     this.state = "spawning";
 
-    const materials = getPumpkinMaterials(variant);
+    const materials = getPumpkinMaterials(variant, model.look, model.stemLook);
     this.materials = materials;
     this.mesh = new DestructibleMesh(geometry, materials.outer, materials.inner);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
     this.mesh.userData = { appear: 0, hit: 0, generation: 0, shared: true, pumpkin: this };
 
-    if (!variant.model) {
-      this.stem = new THREE.Mesh(createStemGeometry(variant), materials.stem);
-      this.stem.position.y = stemAnchor(variant);
-      this.stem.rotation.y = Math.random() * Math.PI * 2;
+    if (model.stem) {
+      this.stem = new THREE.Mesh(model.stem.geometry, materials.stem);
+      this.stem.position.copy(model.stem.pivot);
       this.stem.castShadow = true;
       this.stem.userData = this.mesh.userData; // burns in together with the body
       this.mesh.add(this.stem);
@@ -45,7 +45,7 @@ export class Pumpkin {
     // Shatter pattern is computed in a worker as soon as the pumpkin exists,
     // weighted towards the side facing the player where most blows land.
     this.shards = pool.fracture(geometry, {
-      fragmentCount: PRE_FRACTURE_PIECES,
+      fragmentCount: Math.round(PRE_FRACTURE_PIECES * live.pieces),
       impactPoint: new THREE.Vector3(0, 0, variant.size * 0.9),
       impactRadius: variant.size * 0.9,
     });

@@ -1,91 +1,20 @@
 // The fixed set of pumpkins. Every round deals them from a shuffled deck, so
-// everyone smashes the same family. To swap in a modelled pumpkin later, give
-// a variant a `model: "/pumpkins/name.glb"` and it replaces the procedural body
-// (see pumpkins/geometry.js).
+// everyone smashes the same family.
+//
+// model         GLB in public/pumpkins/ (placeholders: scripts/build-placeholders.mjs)
+// size          horizontal radius in world units; the model is scaled to it
+// rotationY     optional, radians, if the model's face doesn't look down +Z
+// glow          colour of the candle light inside (flesh tint, face fallback)
+// glowFromAlbedo  for models without an emissive map: make very bright albedo
+//                 (a painted glowing face) emissive
+// flesh         optional [light, dark] colours of the flesh revealed by cuts
+// bonus         score multiplier when this pumpkin breaks
 
 export const VARIANTS = [
-  {
-    name: "Jack",
-    size: 0.95,
-    squash: 0.8,
-    ribs: 10,
-    ribDepth: 0.12,
-    dimple: 0.18,
-    color: "#ff7419",
-    shade: "#a8330a",
-    glow: "#ffb347",
-    face: "grin",
-    stem: { length: 0.42, bend: 0.12, radius: 0.09 },
-    bonus: 1,
-  },
-  {
-    name: "Big Bertha",
-    size: 1.15,
-    squash: 0.62,
-    ribs: 12,
-    ribDepth: 0.1,
-    dimple: 0.2,
-    color: "#f2620f",
-    shade: "#8e2606",
-    glow: "#ff9a3c",
-    face: null,
-    stem: { length: 0.3, bend: 0.05, radius: 0.12 },
-    bonus: 1.2,
-  },
-  {
-    name: "Spindle",
-    size: 0.78,
-    squash: 1.08,
-    ribs: 8,
-    ribDepth: 0.14,
-    dimple: 0.12,
-    color: "#ff9a2e",
-    shade: "#b44a0c",
-    glow: "#ffd36a",
-    face: "scared",
-    stem: { length: 0.55, bend: 0.25, radius: 0.07 },
-    bonus: 1,
-  },
-  {
-    name: "The Pale One",
-    size: 0.9,
-    squash: 0.74,
-    ribs: 10,
-    ribDepth: 0.11,
-    dimple: 0.16,
-    color: "#e6d8bd",
-    shade: "#7d6a8e",
-    glow: "#b46bff",
-    face: "angry",
-    stem: { length: 0.36, bend: 0.15, radius: 0.08 },
-    bonus: 1.5,
-  },
-  {
-    name: "Rotten Tom",
-    size: 0.88,
-    squash: 0.7,
-    ribs: 9,
-    ribDepth: 0.15,
-    dimple: 0.2,
-    color: "#b5711f",
-    shade: "#3f4a14",
-    glow: "#c6ff5a",
-    face: "sad",
-    stem: { length: 0.28, bend: 0.3, radius: 0.08 },
-    bonus: 1.3,
-  },
-  {
-    name: "Pip",
-    size: 0.6,
-    squash: 0.85,
-    ribs: 8,
-    ribDepth: 0.12,
-    dimple: 0.15,
-    color: "#ffad3a",
-    shade: "#c25a10",
-    glow: "#ffe08a",
-    face: "grin",
-    stem: { length: 0.3, bend: 0.1, radius: 0.06 },
-    bonus: 2,
-  },
+  { name: "Jack", model: "/pumpkins/jack.glb", size: 0.95, glow: "#ffb347", bonus: 1 },
+  { name: "Big Bertha", model: "/pumpkins/bertha.glb", size: 1.15, glow: "#ff9a3c", bonus: 1.2 },
+  { name: "Spindle", model: "/pumpkins/spindle.glb", size: 0.78, glow: "#ffd36a", bonus: 1 },
+  { name: "The Pale One", model: "/pumpkins/pale.glb", size: 0.9, glow: "#b46bff", bonus: 1.5, flesh: [0xf3e2b0, 0xc9a25a] },
+  { name: "Rotten Tom", model: "/pumpkins/rotten.glb", size: 0.88, glow: "#c6ff5a", bonus: 1.3, flesh: [0xd9b04a, 0x7a5a18] },
+  { name: "Pip", model: "/pumpkins/pip.glb", size: 0.6, glow: "#ffe08a", bonus: 2 },
 ];

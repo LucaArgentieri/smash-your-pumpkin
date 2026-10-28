@@ -4,7 +4,6 @@
 export const GAME = {
   duration: 60,
   comboWindow: 0.9,
-  maxFragments: 220,
   fragmentLife: 8,
   dustRadius: 0.11, // fragments smaller than this turn to dust instead of breaking
   nextPumpkinDelay: 0.55,
@@ -73,10 +72,16 @@ export const PALETTE = {
   ink: "#1a0d0a",
 };
 
+// Titles and words: a gothic face in the spirit of Blasphemous that stays
+// legible. Numbers keep the pixel blackletter, which reads fine for digits.
 export const FONTS = {
-  title: '"Jacquard 24", "Pixelify Sans", serif',
-  body: '"Pixelify Sans", monospace',
+  title: { family: '"Grenze Gotisch", serif', weight: 700 },
+  numbers: { family: '"Jacquard 24", "Grenze Gotisch", serif', weight: 400 },
+  body: { family: '"Pixelify Sans", monospace', weight: 400 },
 };
+
+/** CSS font shorthand for canvas text. */
+export const font = (name, px, weight = FONTS[name].weight) => `${weight} ${px}px ${FONTS[name].family}`;
 
 export const TEXT = {
   title: ["SMASH", "YOUR PUMPKIN"],
@@ -96,4 +101,6 @@ export const TEXT = {
   combo: "COMBO",
   dust: "DUST!",
   chooseTool: "choose your weapon  1 2 3",
+  loading: "lighting the candles...",
+  quality: "QUALITY",
 };

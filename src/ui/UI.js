@@ -27,13 +27,15 @@ export class UI {
     this.tagline = add(new UIText({ text: TEXT.tagline, size: 22, ...VIOLET }));
     this.begin = add(new UIText({ text: TEXT.begin, font: "title", size: 76, wobble: 0.03 }));
     this.hint = add(new UIText({ text: TEXT.chooseTool, size: 18, ...VIOLET }));
+    this.loading = add(new UIText({ text: TEXT.loading, font: "title", size: 54, width: 700, wobble: 0.03 }));
+    this.qualityLabel = add(new UIText({ text: "", size: 16, anchor: "right", width: 260, ...VIOLET }));
 
     // HUD.
-    this.timer = add(new UIText({ text: "60", font: "title", size: 104, width: 220 }));
+    this.timer = add(new UIText({ text: "60", font: "numbers", size: 104, width: 220 }));
     this.scoreLabel = add(new UIText({ text: TEXT.score, size: 20, anchor: "left", width: 200, ...VIOLET }));
-    this.scoreValue = add(new UIText({ text: "0", font: "title", size: 64, anchor: "left", width: 260 }));
+    this.scoreValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "left", width: 260 }));
     this.pumpkinsLabel = add(new UIText({ text: TEXT.pumpkins, size: 20, anchor: "right", width: 200, ...VIOLET }));
-    this.pumpkinsValue = add(new UIText({ text: "0", font: "title", size: 64, anchor: "right", width: 160 }));
+    this.pumpkinsValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "right", width: 160 }));
     this.combo = add(new UIText({ text: "x2 COMBO", font: "title", size: 58, width: 460, wobble: 0.04 }));
 
     // Big centre messages: READY / SMASH / TIME'S UP.
@@ -43,9 +45,9 @@ export class UI {
     this.resultsTitle = add(new UIText({ text: TEXT.results, font: "title", size: 72, width: 980, wobble: 0.01 }));
     this.rows = [TEXT.pumpkins, TEXT.shards, TEXT.bestCombo].map((label) => ({
       label: add(new UIText({ text: label, size: 28, anchor: "left", width: 300, ...VIOLET })),
-      value: add(new UIText({ text: "0", font: "title", size: 46, anchor: "right", width: 220 })),
+      value: add(new UIText({ text: "0", font: "numbers", size: 46, anchor: "right", width: 220 })),
     }));
-    this.finalScore = add(new UIText({ text: "0", font: "title", size: 110, width: 620, wobble: 0.015 }));
+    this.finalScore = add(new UIText({ text: "0", font: "numbers", size: 110, width: 620, wobble: 0.015 }));
     this.bestLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET }));
     this.again = add(new UIText({ text: TEXT.again, font: "title", size: 76, wobble: 0.03 }));
 
@@ -58,7 +60,7 @@ export class UI {
     this.selected = 0;
 
     this.popups = Array.from({ length: 10 }, () => {
-      const p = add(new UIText({ text: "", font: "title", size: 44, width: 280 }));
+      const p = add(new UIText({ text: "", font: "numbers", size: 44, width: 280 }));
       p.renderOrder = 50;
       return p;
     });
@@ -101,6 +103,8 @@ export class UI {
     place(this.tagline, 0, top - 335 * k);
     place(this.begin, 0, bottom + 330 * k);
     place(this.hint, 0, bottom + 275 * k);
+    place(this.loading, 0, 0);
+    place(this.qualityLabel, right - margin * 0.6, bottom + Math.max(16, 22 * k), w * 0.4);
 
     place(this.timer, 0, top - 70 * k);
     place(this.scoreLabel, left + margin, top - 34 * k);
@@ -148,10 +152,23 @@ export class UI {
     this.begin.show({ duration: 0.9, delay: 1.6 });
     this.hint.show({ duration: 0.8, delay: 1.9 });
     this.showCards(1.9);
+    this.qualityLabel.show({ duration: 0.6, delay: 2.2 });
+  }
+
+  showLoading() {
+    this.loading.show({ duration: 1 });
+  }
+
+  hideLoading() {
+    this.loading.hide({ duration: 0.5 });
+  }
+
+  setQualityLabel(text) {
+    this.qualityLabel.setText(`${TEXT.quality}: ${text}  [Q]`);
   }
 
   hideTitle() {
-    [this.title1, this.title2, this.tagline, this.begin, this.hint].forEach((el, i) =>
+    [this.title1, this.title2, this.tagline, this.begin, this.hint, this.qualityLabel].forEach((el, i) =>
       el.hide({ duration: 0.5, delay: i * 0.05 }),
     );
   }
@@ -216,10 +233,11 @@ export class UI {
     this.bestLine.setText(isBest ? `~ ${TEXT.newBest} ~` : `${TEXT.best}  ${best}`);
     this.bestLine.show({ duration: 0.8, delay: 3.1 });
     this.again.show({ duration: 0.9, delay: 3.4 });
+    this.qualityLabel.show({ duration: 0.6, delay: 3.6 });
   }
 
   hideResults() {
-    [this.resultsTitle, ...this.rows.flatMap((r) => [r.label, r.value]), this.finalScore, this.bestLine, this.again].forEach(
+    [this.resultsTitle, ...this.rows.flatMap((r) => [r.label, r.value]), this.finalScore, this.bestLine, this.again, this.qualityLabel].forEach(
       (el, i) => el.hide({ duration: 0.5, delay: i * 0.03 }),
     );
   }
@@ -290,6 +308,7 @@ export class UI {
     this.pointer.x = x;
     this.pointer.y = y;
     this.pointer.touch = touch;
+    this.pointer.seen = true;
     for (const card of this.cards) {
       const over = !touch && card.contains(x, y);
       if (over !== card.hovered) {
@@ -297,7 +316,7 @@ export class UI {
         tweens.to(card.u.hover, "value", over ? 0.5 : 0, 0.15);
       }
     }
-    for (const button of [this.begin, this.again]) {
+    for (const button of [this.begin, this.again, this.qualityLabel]) {
       const over = !touch && button.contains(x, y, 20);
       if (over !== button.hovered) {
         button.hovered = over;
@@ -311,11 +330,18 @@ export class UI {
     const card = this.cards.findIndex((c) => c.contains(x, y));
     if (card !== -1) return { type: "tool", index: card };
     if (this.begin.contains(x, y, 20)) return { type: "begin" };
+    if (this.qualityLabel.contains(x, y, 12)) return { type: "quality" };
     if (this.again.contains(x, y, 20)) return { type: "again" };
     return null;
   }
 
   update(dt) {
+    // Fully burnt-out panels leave the draw list (after the first frames,
+    // which compile every panel's shader up front).
+    this.warmFrames = (this.warmFrames ?? 3) - 1;
+    for (const el of this.scene.children) {
+      if (el.u && el !== this.reticle && this.warmFrames < 0) el.visible = el.u.reveal.value > 0.001;
+    }
     for (const el of this.scene.children) {
       if (el.punch) {
         el.punch = Math.max(0, el.punch - dt * 4);
@@ -327,7 +353,7 @@ export class UI {
       card.lift += (target - card.lift) * Math.min(1, dt * 12);
       card.position.y = card.home.y + card.lift * this.k;
     }
-    this.reticle.visible = !this.pointer.touch;
+    this.reticle.visible = !this.pointer.touch && this.pointer.seen;
     this.reticle.position.set(this.pointer.x, this.pointer.y, 0);
   }
 }

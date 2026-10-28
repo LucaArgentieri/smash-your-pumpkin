@@ -1,6 +1,7 @@
 import * as THREE from "three/webgpu";
 import { DestructibleMesh } from "@dgreenheck/three-pinata";
 import { GAME } from "../config.js";
+import { live } from "../core/Quality.js";
 import { tweens, ease } from "../core/Tween.js";
 
 const _v = new THREE.Vector3();
@@ -116,7 +117,7 @@ export class Destruction {
     let shards;
     try {
       shards = await this.pool.fracture(fragment.geometry, {
-        fragmentCount: tool.fragmentCount,
+        fragmentCount: Math.max(2, Math.round(tool.fragmentCount * live.pieces)),
         impactPoint: local,
         impactRadius: radius * 0.6,
       });
@@ -233,11 +234,18 @@ export class Destruction {
   }
 
   update(dt) {
-    const alive = this.fragments.filter((f) => !f.userData.decaying);
-    const excess = alive.length - GAME.maxFragments;
-    for (let i = 0; i < excess; i++) this.decay(alive[i], 0.5);
+    // Oldest shards first: burn away whatever exceeds this tier's budget.
+    let excess = -live.maxFragments;
+    for (const f of this.fragments) if (!f.userData.decaying) excess++;
+    for (let i = 0; excess > 0 && i < this.fragments.length; i++) {
+      if (this.fragments[i].userData.decaying) continue;
+      this.decay(this.fragments[i], 0.5);
+      excess--;
+    }
 
-    for (const mesh of [...this.fragments]) {
+    // Backwards, because removeFragment splices.
+    for (let i = this.fragments.length - 1; i >= 0; i--) {
+      const mesh = this.fragments[i];
       const data = mesh.userData;
       data.age += dt;
       data.hit = Math.max(0, data.hit - dt * 5);

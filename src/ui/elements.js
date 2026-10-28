@@ -15,7 +15,7 @@ import {
   vec2,
   vec3,
 } from "three/tsl";
-import { FONTS } from "../config.js";
+import { font as cssFont } from "../config.js";
 import { tweens, ease } from "../core/Tween.js";
 
 const EMBER = color(0xff5a14);
@@ -156,9 +156,8 @@ export class UIText extends UIPanel {
     intensity = 1.5,
     wobble = 0,
   }) {
-    const family = FONTS[font] ?? font;
     const pad = size * 0.45;
-    const measured = measure(text, size, family) + pad * 2;
+    const measured = measure(text, cssFont(font, size)) + pad * 2;
     const boxWidth = width ?? measured;
     super({
       width: boxWidth,
@@ -166,7 +165,7 @@ export class UIText extends UIPanel {
       anchor,
       intensity,
       wobble,
-      draw: (ctx, w, h, value) => drawText(ctx, w, h, value, { family, size, pad, colors, glow, anchor }),
+      draw: (ctx, w, h, value) => drawText(ctx, w, h, value, { font, size, pad, colors, glow, anchor }),
     });
     this.text = text;
     this.redraw(text);
@@ -179,20 +178,20 @@ export class UIText extends UIPanel {
   }
 }
 
-function measure(text, size, family) {
+function measure(text, css) {
   const ctx = measure.ctx ?? (measure.ctx = document.createElement("canvas").getContext("2d"));
-  ctx.font = `${size}px ${family}`;
+  ctx.font = css;
   return ctx.measureText(text).width;
 }
 
-function drawText(ctx, w, h, text, { family, size, pad, colors, glow, anchor }) {
+function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor }) {
   let px = size;
-  ctx.font = `${px}px ${family}`;
+  ctx.font = cssFont(font, px);
   const available = w - pad * 2;
   const textWidth = ctx.measureText(text).width;
   if (textWidth > available) {
     px = Math.floor(size * (available / textWidth));
-    ctx.font = `${px}px ${family}`;
+    ctx.font = cssFont(font, px);
   }
 
   ctx.textBaseline = "middle";

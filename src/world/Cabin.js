@@ -12,15 +12,17 @@ import {
   mx_fractal_noise_float,
   mx_noise_float,
   mx_worley_noise_float,
+  cos,
   positionLocal,
-  positionWorld,
   sin,
   smoothstep,
   step,
+  texture,
   time,
   uv,
   vec2,
   vec3,
+  vec4,
 } from "three/tsl";
 import { PALETTE } from "../config.js";
 
@@ -31,8 +33,9 @@ export const TABLE = { width: 9, depth: 5, thickness: 0.4 };
  * moon staring from the dark and dust drifting through the candlelight.
  */
 export class Cabin {
-  constructor(scene, physics) {
+  constructor(scene, physics, renderer) {
     this.scene = scene;
+    this.renderer = renderer;
     scene.background = new THREE.Color(PALETTE.night);
     scene.fog = new THREE.FogExp2(PALETTE.fog, 0.055);
 
@@ -55,8 +58,6 @@ export class Cabin {
 
     const moonLight = new THREE.DirectionalLight(PALETTE.moon, 1.1);
     moonLight.position.set(-2, 7, -6);
-    moonLight.castShadow = true;
-    moonLight.shadow.mapSize.set(1024, 1024);
     const cam = moonLight.shadow.camera;
     cam.left = -5;
     cam.right = 5;
@@ -66,6 +67,7 @@ export class Cabin {
     cam.far = 20;
     moonLight.shadow.bias = -0.0015;
     this.scene.add(moonLight);
+    this.moonLight = moonLight;
 
     // Warm key light from the player's side, as if from a lantern behind them.
     const key = new THREE.PointLight(0xff8a3a, 9, 12, 1.6);
@@ -77,17 +79,47 @@ export class Cabin {
     const lantern = new THREE.SpotLight(0xffa04a, 26, 9, 0.55, 0.85, 1.4);
     lantern.position.set(0.3, 4.2, 1.2);
     lantern.target.position.set(0, 0.3, 0.1);
-    lantern.castShadow = true;
-    lantern.shadow.mapSize.set(1024, 1024);
     lantern.shadow.bias = -0.002;
     this.scene.add(lantern, lantern.target);
+    this.lantern = lantern;
+  }
+
+  /**
+   * Shadows, candle lights and dust per quality tier. Changing light or
+   * shadow setup recompiles lit materials, so callers apply this between
+   * rounds rather than mid-smash.
+   */
+  setQuality({ shadows, shadowMapSize, candleLights, dust }) {
+    const casters = { none: [], lantern: [this.lantern], all: [this.lantern, this.moonLight] }[shadows];
+    for (const light of [this.lantern, this.moonLight]) {
+      light.castShadow = casters.includes(light);
+      if (light.shadow.mapSize.x !== shadowMapSize) {
+        light.shadow.map?.dispose();
+        light.shadow.map = null;
+        light.shadow.mapSize.set(shadowMapSize, shadowMapSize);
+      }
+    }
+
+    // Fewer real lights: the survivors get brighter so the room keeps its
+    // overall warmth, and the flames themselves stay emissive regardless.
+    const boost = candleLights > 0 ? this.candles.length / candleLights : 0;
+    this.candles.forEach((candle, i) => {
+      candle.light.visible = i < candleLights;
+      candle.boost = Math.min(boost, 2);
+    });
+    this.keyBase = candleLights === 0 ? 12 : 9;
+
+    this.dust.count = dust;
+    this.dust.visible = dust > 0;
   }
 
   addTable() {
     const geometry = new THREE.BoxGeometry(TABLE.width, TABLE.thickness, TABLE.depth);
     const material = new THREE.MeshStandardNodeMaterial({ metalness: 0 });
 
-    const p = positionWorld;
+    // The wood is procedural but baked once: drawing it is a texture fetch.
+    // Top-face UVs map to table-space x/z.
+    const p = vec3(uv().x.sub(0.5).mul(TABLE.width), 0, float(0.5).sub(uv().y).mul(TABLE.depth));
     const grain = mx_fractal_noise_float(vec3(p.x.mul(0.35), p.z.mul(7), 0), 4, 2, 0.5);
     const planks = fract(p.z.mul(0.9).add(0.5));
     const seam = step(0.97, planks).add(step(planks, 0.02));
@@ -107,8 +139,9 @@ export class Cabin {
     const stain = smoothstep(0.55, 0.75, mx_noise_float(vec3(p.x.mul(0.6), p.z.mul(0.6), 9)).mul(0.5).add(0.5));
     wood = mix(wood, color(0x1a0a08), stain.mul(0.5));
 
-    material.colorNode = wood;
-    material.roughnessNode = mix(float(0.75), float(0.95), grain.add(0.5));
+    const baked = texture(this.renderer.bake(vec4(wood, clamp(grain.add(0.5), 0, 1)), 1024, 576));
+    material.colorNode = baked.rgb;
+    material.roughnessNode = mix(float(0.75), float(0.95), baked.a);
 
     const table = new THREE.Mesh(geometry, material);
     table.position.y = -TABLE.thickness / 2;
@@ -160,17 +193,22 @@ export class Cabin {
     group.add(light);
 
     this.scene.add(group);
-    return { light, base: 4 + height * 2, seed: Math.random() * 100 };
+    return { light, base: 4 + height * 2, boost: 1, seed: Math.random() * 100 };
   }
 
   addMoon() {
     const material = new THREE.MeshBasicNodeMaterial({ fog: false });
-    const p = positionLocal.mul(1.4);
+    // Surface baked in the sphere's UV space (the same unit-sphere point the
+    // geometry has at that UV), lit by a cheap rim term at draw time.
+    const phi = uv().x.mul(Math.PI * 2);
+    const theta = float(1).sub(uv().y).mul(Math.PI);
+    const p = vec3(cos(phi).negate().mul(sin(theta)), cos(theta), sin(phi).mul(sin(theta))).mul(2.6 * 1.4);
     const craters = smoothstep(0.0, 0.35, mx_worley_noise_float(p.mul(1.6)));
     const mottling = mx_fractal_noise_float(p.mul(2.5), 4, 2, 0.5).mul(0.5).add(0.5);
+    const surface = mix(color(0x6b4fb0), color(PALETTE.moon), clamp(mottling.mul(craters), 0, 1));
+    const baked = texture(this.renderer.bake(surface, 512, 256));
     const rim = smoothstep(0.2, 1, positionLocal.z.div(2.6));
-    const moonColor = mix(color(0x6b4fb0), color(PALETTE.moon), clamp(mottling.mul(craters), 0, 1));
-    material.colorNode = moonColor.mul(rim.mul(0.9).add(0.5)).mul(1.6);
+    material.colorNode = baked.rgb.mul(rim.mul(0.9).add(0.5)).mul(1.6);
 
     const moon = new THREE.Mesh(new THREE.SphereGeometry(2.6, 48, 24), material);
     moon.position.set(4.2, 2.3, -17);
@@ -189,7 +227,7 @@ export class Cabin {
   }
 
   addDust() {
-    const count = 160;
+    const count = 160; // upper bound; quality picks how many are drawn
     const material = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false });
     const seed = vec3(hash(instanceIndex), hash(instanceIndex.add(101)), hash(instanceIndex.add(211)));
     const drift = time.mul(0.04).add(seed.x.mul(10));
@@ -206,14 +244,15 @@ export class Cabin {
     dust.count = count;
     dust.frustumCulled = false;
     this.scene.add(dust);
+    this.dust = dust;
   }
 
   update(elapsed) {
     for (const candle of this.candles) {
       const t = elapsed * 9 + candle.seed;
       const flicker = Math.sin(t) * 0.25 + Math.sin(t * 2.3) * 0.15 + (Math.random() - 0.5) * 0.25;
-      candle.light.intensity = candle.base * (1 + flicker * 0.35);
+      candle.light.intensity = candle.base * candle.boost * (1 + flicker * 0.35);
     }
-    this.key.intensity = 9 + Math.sin(elapsed * 1.3) * 0.6;
+    this.key.intensity = (this.keyBase ?? 9) + Math.sin(elapsed * 1.3) * 0.6;
   }
 }

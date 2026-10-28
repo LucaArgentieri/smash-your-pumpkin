@@ -1,14 +1,15 @@
 import * as THREE from "three/webgpu";
-import { GAME, TEXT, TOOLS } from "../config.js";
+import { font, GAME, TEXT, TOOLS } from "../config.js";
 import { FracturePool } from "../core/FracturePool.js";
 import { Physics } from "../core/Physics.js";
+import { live, Quality } from "../core/Quality.js";
 import { Renderer } from "../core/Renderer.js";
 import { tweens } from "../core/Tween.js";
 import { Debris } from "../fx/Debris.js";
 import { Pumpkin } from "../pumpkins/Pumpkin.js";
 import { VARIANTS } from "../pumpkins/variants.js";
 import { getPumpkinMaterials } from "../pumpkins/materials.js";
-import { createBodyGeometry } from "../pumpkins/geometry.js";
+import { loadPumpkinModel } from "../pumpkins/models.js";
 import { UI } from "../ui/UI.js";
 import { Cabin } from "../world/Cabin.js";
 import { Destruction } from "./Destruction.js";
@@ -17,12 +18,20 @@ const PUMPKIN_SPOT = new THREE.Vector3(0, 0, 0.15);
 const LOOK_AT = new THREE.Vector3(0, 0.85, 0);
 const CAMERA_HOME = new THREE.Vector3(0, 2.75, 4.5);
 const BEST_KEY = "smash-your-pumpkin:best";
+// How far (world units) a click may miss a shard and still count: small
+// shards and touch screens would be frustrating otherwise.
+const AIM_ASSIST = 0.15;
 
 /**
  * The rage room: title -> intro -> 60 s of smashing -> results -> again.
  */
 export class Game {
   async start() {
+    // Downloads (physics wasm, pumpkin models) start right away and overlap
+    // with font loading and renderer setup.
+    this.physics = new Physics();
+    const physicsReady = this.physics.init();
+    const modelsReady = Promise.all(VARIANTS.map(loadPumpkinModel));
     await loadFonts();
 
     this.scene = new THREE.Scene();
@@ -37,9 +46,32 @@ export class Game {
     });
     await this.renderer.renderer.init();
 
-    this.physics = new Physics();
-    await this.physics.init();
-    this.cabin = new Cabin(this.scene, this.physics);
+    this.quality = new Quality(this.renderer.renderer);
+    this.renderer.setQuality(this.quality.preset);
+    this.reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    this.raycaster = new THREE.Raycaster();
+    this.ndc = new THREE.Vector2();
+    this.clock = new THREE.Timer();
+    this.elapsed = 0;
+    this.shake = 0;
+    this.tool = 0;
+    this.cooldownUntil = 0;
+    this.pointerHeld = false;
+    this.deck = [];
+    this.state = "loading";
+    this.resetStats();
+
+    this.bindEvents();
+    this.onResize();
+    this.ui.setQualityLabel(this.quality.label);
+    this.ui.showLoading();
+    this.renderer.renderer.setAnimationLoop((t) => this.frame(t));
+
+    const [, models] = await Promise.all([physicsReady, modelsReady]);
+
+    this.cabin = new Cabin(this.scene, this.physics, this.renderer);
+    this.cabin.setQuality(this.quality.preset);
     this.pool = new FracturePool();
     this.debris = new Debris(this.scene);
     this.destruction = new Destruction({
@@ -48,25 +80,14 @@ export class Game {
       pool: this.pool,
       debris: this.debris,
     });
-    this.raycaster = new THREE.Raycaster();
-    this.ndc = new THREE.Vector2();
-    this.clock = new THREE.Timer();
-    this.elapsed = 0;
-    this.shake = 0;
-    this.tool = 0;
-    this.cooldownUntil = 0;
-    this.deck = [];
+    this.warmUpMaterials(models);
+    this.quality.onChange((preset) => this.onQualityChange(preset));
+
+    this.ui.hideLoading();
     this.state = "title";
-    this.resetStats();
-
-    this.warmUpMaterials();
-    this.bindEvents();
-    this.onResize();
-
     this.spawnPumpkin();
     this.ui.showTitle();
     this.dim(1);
-    this.renderer.renderer.setAnimationLoop((t) => this.frame(t));
   }
 
   resetStats() {
@@ -83,18 +104,18 @@ export class Game {
    * Draws one hidden copy of every pumpkin material under the table for a few
    * frames, so shaders compile now rather than on the first smash.
    */
-  warmUpMaterials() {
+  warmUpMaterials(models) {
     const group = new THREE.Group();
-    for (const variant of VARIANTS) {
-      const { outer, inner, stem } = getPumpkinMaterials(variant);
-      const geometry = createBodyGeometry(variant).clone();
+    VARIANTS.forEach((variant, i) => {
+      const { outer, inner, stem } = getPumpkinMaterials(variant, models[i].look, models[i].stemLook);
+      const geometry = models[i].body.clone();
       geometry.addGroup(0, geometry.index.count / 2, 0);
       geometry.addGroup(geometry.index.count / 2, geometry.index.count / 2, 1);
       const mesh = new THREE.Mesh(geometry, [outer, inner]);
       mesh.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), stem));
       mesh.scale.setScalar(0.1);
       group.add(mesh);
-    }
+    });
     group.position.set(0, -0.2, 0);
     this.scene.add(group);
     tweens.after(0.5, () => {
@@ -113,6 +134,10 @@ export class Game {
       this.onPointerMove(e);
       this.onPointerDown();
     });
+    const release = () => (this.pointerHeld = false);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    window.addEventListener("blur", release);
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     window.addEventListener("keydown", (e) => this.onKey(e));
   }
@@ -129,14 +154,20 @@ export class Game {
     this.ui.punch(this.ui.reticle, 0.8);
     const action = this.ui.pick(x, y);
     if (action?.type === "tool") return this.selectTool(action.index);
+    if (action?.type === "quality") return this.quality.cycle();
     if (action?.type === "begin" && this.state === "title") return this.beginRound();
     if (action?.type === "again" && this.state === "results") return this.beginRound();
-    if (this.state === "playing") this.smash();
+    if (this.state === "playing") {
+      // Holding the button keeps swinging at the tool's own pace.
+      this.pointerHeld = true;
+      this.smash();
+    }
   }
 
   onKey(e) {
     const index = ["Digit1", "Digit2", "Digit3"].indexOf(e.code);
     if (index !== -1) this.selectTool(index);
+    if (e.code === "KeyQ" && this.state !== "loading") this.quality.cycle();
     if (e.code === "Space" || e.code === "Enter") {
       if (this.state === "title" && this.ui.begin.shown) this.beginRound();
       if (this.state === "results" && this.ui.again.shown) this.beginRound();
@@ -170,8 +201,24 @@ export class Game {
     this.ui.announce(TEXT.go, { hold: 0.15, style: "blood" });
   }
 
+  /**
+   * Resolution and bloom change right away; lights and shadows recompile the
+   * lit shaders, so mid-round they wait until the round is over.
+   */
+  onQualityChange(preset) {
+    this.renderer.setQuality(preset);
+    this.ui.setQualityLabel(this.quality.label);
+    if (this.state === "playing" || this.state === "intro") this.pendingQuality = preset;
+    else this.cabin.setQuality(preset);
+  }
+
   async endRound() {
     this.state = "over";
+    this.pointerHeld = false;
+    if (this.pendingQuality) {
+      this.cabin.setQuality(this.pendingQuality);
+      this.pendingQuality = null;
+    }
     this.ui.combo.hide({ duration: 0.3 });
     await this.ui.announce(TEXT.timeUp, { hold: 0.9, style: "blood" });
     this.ui.hideHUD();
@@ -223,13 +270,21 @@ export class Game {
   async smash() {
     if (this.elapsed < this.cooldownUntil) return;
     this.raycaster.setFromCamera(this.ndc, this.camera);
-    const [hit] = this.raycaster.intersectObjects(this.destruction.targets(this.pumpkin), false);
-    if (!hit) return;
+    const targets = this.destruction.targets(this.pumpkin);
+    const hit = this.raycaster.intersectObjects(targets, false)[0] ?? this.nearMiss(targets);
+    if (!hit) {
+      // Throttle the raycasts of a held button sweeping over empty table.
+      this.cooldownUntil = this.elapsed + 0.08;
+      return;
+    }
 
     const tool = TOOLS[this.tool];
     this.cooldownUntil = this.elapsed + tool.cooldown;
-    this.shake = Math.min(1, this.shake + tool.shake);
-    this.renderer.uniforms.flash.value = Math.min(0.5, this.renderer.uniforms.flash.value + tool.shake * 0.35);
+    const motion = this.reducedMotion ? 0.25 : 1;
+    this.shake = Math.min(1, this.shake + tool.shake * motion);
+    if (!this.reducedMotion) {
+      this.renderer.uniforms.flash.value = Math.min(0.5, this.renderer.uniforms.flash.value + tool.shake * 0.35);
+    }
     this.physics.hitStop(tool.hitStop);
 
     const pumpkin = hit.object.userData.pumpkin;
@@ -243,6 +298,29 @@ export class Game {
     if (this.state === "playing") this.register(result, hit.point, tool, pumpkin);
   }
 
+  /** Closest target whose bounds pass within AIM_ASSIST of the ray. */
+  nearMiss(targets) {
+    const ray = this.raycaster.ray;
+    const center = new THREE.Vector3();
+    let best = null;
+    let bestGap = AIM_ASSIST;
+    for (const object of targets) {
+      object.getWorldPosition(center);
+      if (center.clone().sub(ray.origin).dot(ray.direction) <= 0) continue;
+      const radius = object.geometry.boundingSphere.radius * object.scale.x;
+      const gap = ray.distanceToPoint(center) - radius;
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = { object, center: center.clone(), radius };
+      }
+    }
+    if (!best) return null;
+    // Aim at the side of the object facing the ray.
+    const point = ray.closestPointToPoint(best.center, new THREE.Vector3());
+    point.sub(best.center).setLength(best.radius * 0.8).add(best.center);
+    return { object: best.object, point };
+  }
+
   register(result, point, tool, pumpkin) {
     if (result.type === "none") return;
 
@@ -254,7 +332,10 @@ export class Game {
     let points = 0;
     if (result.type === "crack") points = GAME.hitScore;
     if (result.type === "dust") points = GAME.dustScore;
-    if (result.type === "pieces" || result.type === "break") points = result.pieces * GAME.pieceScore * tool.scoreMult;
+    // Lower quality tiers cut fewer pieces; normalise so scores stay comparable.
+    if (result.type === "pieces" || result.type === "break") {
+      points = (result.pieces / live.pieces) * GAME.pieceScore * tool.scoreMult;
+    }
     if (result.type === "break") {
       points += GAME.breakScore * (pumpkin?.variant.bonus ?? 1);
       this.pumpkinsSmashed++;
@@ -289,18 +370,26 @@ export class Game {
 
   frame(timestamp) {
     this.clock.update(timestamp);
-    const dt = Math.min(this.clock.getDelta(), 1 / 20);
+    const realDt = this.clock.getDelta();
+    const dt = Math.min(realDt, 1 / 20);
     this.elapsed += dt;
 
     tweens.update(dt);
+    this.ui.update(dt);
+    if (this.state === "loading") {
+      this.renderer.render();
+      return;
+    }
+
+    this.quality.sample(realDt);
     this.physics.step(dt);
     this.pumpkin?.update(dt);
     this.destruction.update(dt);
     this.debris.update(dt);
     this.cabin.update(this.elapsed);
-    this.ui.update(dt);
 
     if (this.state === "playing") {
+      if (this.pointerHeld) this.smash();
       this.timeLeft -= dt;
       this.ui.setTimer(Math.max(0, Math.ceil(this.timeLeft)));
       if (this.timeLeft <= 0) this.endRound();
@@ -314,7 +403,7 @@ export class Game {
 
   updateCamera(dt) {
     // Gentle parallax towards the pointer plus decaying screen shake.
-    const sway = this.ui.pointer.touch ? 0 : 1;
+    const sway = this.ui.pointer.touch || this.reducedMotion ? 0 : 1;
     const target = CAMERA_HOME.clone();
     target.x += this.ndc.x * 0.25 * sway;
     target.y += this.ndc.y * 0.12 * sway;
@@ -338,7 +427,7 @@ function shuffle(list) {
 }
 
 async function loadFonts() {
-  const fonts = ['64px "Jacquard 24"', '32px "Pixelify Sans"', 'bold 32px "Pixelify Sans"'];
+  const fonts = ["title", "numbers", "body"].map((name) => font(name, 32));
   try {
     await Promise.race([
       Promise.all(fonts.map((f) => document.fonts.load(f))),
