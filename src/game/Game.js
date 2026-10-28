@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { font, GAME, TEXT, TOOLS } from "../config.js";
+import { COMBO, font, GAME, TEXT, TOOLS } from "../config.js";
 import { FracturePool } from "../core/FracturePool.js";
 import { Physics } from "../core/Physics.js";
 import { live, Quality } from "../core/Quality.js";
@@ -18,6 +18,7 @@ const PUMPKIN_SPOT = new THREE.Vector3(0, 0, 0.15);
 const LOOK_AT = new THREE.Vector3(0, 0.85, 0);
 const CAMERA_HOME = new THREE.Vector3(0, 2.75, 4.5);
 const BEST_KEY = "smash-your-pumpkin:best";
+const COMBO_KEY = "smash-your-pumpkin:combo-record";
 // How far (world units) a click may miss a shard and still count: small
 // shards and touch screens would be frustrating otherwise.
 const AIM_ASSIST = 0.15;
@@ -97,6 +98,7 @@ export class Game {
     this.combo = 0;
     this.bestCombo = 0;
     this.lastHitAt = -Infinity;
+    this.lastTool = null;
     this.timeLeft = GAME.duration;
   }
 
@@ -160,7 +162,7 @@ export class Game {
     if (this.state === "playing") {
       // Holding the button keeps swinging at the tool's own pace.
       this.pointerHeld = true;
-      this.smash();
+      this.smash({ deliberate: true });
     }
   }
 
@@ -175,8 +177,10 @@ export class Game {
   }
 
   selectTool(index) {
+    if (index === this.tool && this.state === "playing") return;
     this.tool = index;
     this.ui.select(index);
+    this.ui.describeTool(index, { flash: this.state === "playing" });
   }
 
   // --- Round flow ---------------------------------------------------------------
@@ -215,6 +219,7 @@ export class Game {
   async endRound() {
     this.state = "over";
     this.pointerHeld = false;
+    this.endCombo({ cashOut: true });
     if (this.pendingQuality) {
       this.cabin.setQuality(this.pendingQuality);
       this.pendingQuality = null;
@@ -224,9 +229,12 @@ export class Game {
     this.ui.hideHUD();
     this.dim(1);
 
-    const previousBest = readBest();
+    const previousBest = readNumber(BEST_KEY);
     const isBest = this.score > previousBest;
-    if (isBest) writeBest(this.score);
+    if (isBest) writeNumber(BEST_KEY, this.score);
+    const previousRecord = readNumber(COMBO_KEY);
+    const isComboRecord = this.bestCombo > previousRecord;
+    if (isComboRecord) writeNumber(COMBO_KEY, this.bestCombo);
     this.ui.showResults({
       score: this.score,
       pumpkins: this.pumpkinsSmashed,
@@ -234,6 +242,8 @@ export class Game {
       bestCombo: this.bestCombo,
       best: Math.max(previousBest, this.score),
       isBest: isBest && this.score > 0,
+      comboRecord: Math.max(previousRecord, this.bestCombo),
+      isComboRecord: isComboRecord && this.bestCombo > 1,
     });
     this.state = "results";
   }
@@ -267,13 +277,16 @@ export class Game {
 
   // --- Smashing -----------------------------------------------------------------
 
-  async smash() {
+  /** `deliberate`: a fresh click, not an auto-repeat from holding the button. */
+  async smash({ deliberate = false } = {}) {
     if (this.elapsed < this.cooldownUntil) return;
     this.raycaster.setFromCamera(this.ndc, this.camera);
     const targets = this.destruction.targets(this.pumpkin);
     const hit = this.raycaster.intersectObjects(targets, false)[0] ?? this.nearMiss(targets);
     if (!hit) {
-      // Throttle the raycasts of a held button sweeping over empty table.
+      // A deliberate swing at nothing breaks the combo (no cash-out). Held
+      // swings sweeping over empty table are only throttled.
+      if (deliberate && this.combo > 1) this.endCombo({ cashOut: false });
       this.cooldownUntil = this.elapsed + 0.08;
       return;
     }
@@ -295,7 +308,7 @@ export class Game {
       this.pumpkin = null;
       tweens.after(GAME.nextPumpkinDelay, () => this.spawnPumpkin());
     }
-    if (this.state === "playing") this.register(result, hit.point, tool, pumpkin);
+    if (this.state === "playing") this.register(result, hit.point, tool, pumpkin, TOOLS.indexOf(tool));
   }
 
   /** Closest target whose bounds pass within AIM_ASSIST of the ray. */
@@ -321,13 +334,59 @@ export class Game {
     return { object: best.object, point };
   }
 
-  register(result, point, tool, pumpkin) {
-    if (result.type === "none") return;
+  // --- Combo --------------------------------------------------------------------
 
-    this.combo = this.elapsed - this.lastHitAt <= GAME.comboWindow ? this.combo + 1 : 1;
+  comboWindow() {
+    return Math.max(COMBO.minWindow, COMBO.window - this.combo * COMBO.tighten);
+  }
+
+  comboRank(combo = this.combo) {
+    let rank = null;
+    for (const [threshold, name] of COMBO.ranks) if (combo >= threshold) rank = name;
+    return rank;
+  }
+
+  comboMultiplier() {
+    return Math.min(COMBO.maxMultiplier, 1 + (this.combo - 1) * COMBO.multiplierStep);
+  }
+
+  /** Extends the combo for a landed hit and returns the point multiplier. */
+  extendCombo(toolIndex, point) {
+    const alive = this.combo > 0;
+    const before = this.combo;
+    this.combo += 1;
+    if (alive && this.lastTool !== null && toolIndex !== this.lastTool) {
+      this.combo += COMBO.switchBonus;
+      this.ui.popup(`${TEXT.switched} +${COMBO.switchBonus}`, point, this.camera);
+    }
+    this.lastTool = toolIndex;
     this.lastHitAt = this.elapsed;
     this.bestCombo = Math.max(this.bestCombo, this.combo);
-    const multiplier = Math.min(3, 1 + (this.combo - 1) * 0.1);
+    const rank = this.comboRank();
+    this.ui.setCombo(this.combo, rank, this.comboMultiplier(), { rankUp: rank !== this.comboRank(before) });
+    return this.comboMultiplier();
+  }
+
+  /** Ends the combo: banked (combo^2 bonus) when it runs out, lost on a miss. */
+  endCombo({ cashOut }) {
+    const combo = this.combo;
+    this.combo = 0;
+    this.lastTool = null;
+    this.ui.hideCombo();
+    if (combo < COMBO.minCashOut) return;
+    if (!cashOut) {
+      this.ui.showCashOut(`${TEXT.broken} · x${combo}`, { broken: true });
+      return;
+    }
+    const bonus = Math.round(combo * combo * COMBO.cashOut);
+    this.score += bonus;
+    this.ui.setScore(this.score);
+    this.ui.showCashOut(`x${combo} ${this.comboRank(combo) ?? TEXT.combo}  +${bonus}`);
+  }
+
+  register(result, point, tool, pumpkin, toolIndex) {
+    if (result.type === "none") return;
+    const multiplier = this.extendCombo(toolIndex, point);
 
     let points = 0;
     if (result.type === "crack") points = GAME.hitScore;
@@ -337,7 +396,7 @@ export class Game {
       points = (result.pieces / live.pieces) * GAME.pieceScore * tool.scoreMult;
     }
     if (result.type === "break") {
-      points += GAME.breakScore * (pumpkin?.variant.bonus ?? 1);
+      points += GAME.breakScore * (pumpkin?.variant.bonus ?? 1) * tool.breakBonus;
       this.pumpkinsSmashed++;
       this.ui.setPumpkins(this.pumpkinsSmashed);
     }
@@ -349,7 +408,6 @@ export class Game {
     this.ui.setScore(this.score);
     const label = result.type === "dust" ? `${TEXT.dust} +${points}` : `+${points}`;
     this.ui.popup(label, point, this.camera, { blood: result.type === "break" });
-    this.ui.showCombo(this.combo);
   }
 
   // --- Loop ---------------------------------------------------------------------
@@ -390,6 +448,11 @@ export class Game {
 
     if (this.state === "playing") {
       if (this.pointerHeld) this.smash();
+      if (this.combo > 0) {
+        const left = 1 - (this.elapsed - this.lastHitAt) / this.comboWindow();
+        this.ui.setComboTimer(left);
+        if (left <= 0) this.endCombo({ cashOut: true });
+      }
       this.timeLeft -= dt;
       this.ui.setTimer(Math.max(0, Math.ceil(this.timeLeft)));
       if (this.timeLeft <= 0) this.endRound();
@@ -438,18 +501,18 @@ async function loadFonts() {
   }
 }
 
-function readBest() {
+function readNumber(key) {
   try {
-    return Number(localStorage.getItem(BEST_KEY)) || 0;
+    return Number(localStorage.getItem(key)) || 0;
   } catch {
     return 0;
   }
 }
 
-function writeBest(score) {
+function writeNumber(key, value) {
   try {
-    localStorage.setItem(BEST_KEY, String(score));
+    localStorage.setItem(key, String(value));
   } catch {
-    // Private mode: the best score just isn't remembered.
+    // Private mode: records just aren't remembered.
   }
 }

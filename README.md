@@ -3,12 +3,25 @@
 A Halloween rage room, successor to [paint-your-pumpkin](https://github.com/LucaArgentieri/paint-your-pumpkin).
 You sit at a table in a candlelit cabin and have 60 seconds to smash as many pumpkins as you can.
 
-- **Fist** (1): fast, takes three hits to crack a pumpkin.
-- **Mallet** (2): slow, shatters a pumpkin in one blow.
-- **Axe** (3): chops pumpkins and shards in half, worth more points per piece.
+Each card has a role:
 
-Chained hits build a combo multiplier. Shards that get too small turn to **dust**, which earns a bonus.
-Holding the button keeps swinging, and near misses still count, which helps on touch screens.
+- **Fist** (1), *the grinder*: fast, cracks a pumpkin in three hits and grinds small shards into **dust** for a bonus.
+- **Mallet** (2), *the breaker*: slow, shatters a whole pumpkin in one blow, pumpkin bonus x2.
+- **Axe** (3), *the splitter*: cuts pumpkins and shards in two, x2 points per piece.
+
+### The combo
+
+The combo is where high scores come from:
+
+- Every hit inside the combo window extends it and raises the point multiplier (up to x3).
+- Switching weapon mid-combo adds +2.
+- The window tightens as the combo grows (1.1 s down to 0.55 s), shown by the bar under the counter.
+- Let it run out and it is **cashed in** for combo² × 3 points. Click empty table and it **breaks** for nothing.
+- Ranks: WICKED (5), GRIM (10), GHASTLY (20), UNHOLY (35), DAMNED (50), APOCALYPTIC (80).
+- The best score and the combo record are kept in the browser.
+
+Holding the button keeps swinging (held swings never break the combo), and near misses still count, which
+helps on touch screens. Tuning lives in `COMBO` and `TOOLS` in `src/config.js`.
 
 ## Stack
 
