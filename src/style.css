@@ -1,13 +1,19 @@
-:root {
-    font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #07030c;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-body {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    overscroll-behavior: none;
+canvas {
+  display: block;
+  cursor: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
 }

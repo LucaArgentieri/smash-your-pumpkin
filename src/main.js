@@ -1,4 +1,7 @@
-import { scene } from "./scene.js";
+import { Game } from "./game/Game.js";
 import "./style.css";
 
-new scene();
+const game = new Game();
+game.start();
+
+if (import.meta.env.DEV) window.game = game;
