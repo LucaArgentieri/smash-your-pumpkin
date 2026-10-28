@@ -2,7 +2,7 @@ import * as THREE from "three/webgpu";
 import { TEXT, TOOLS } from "../config.js";
 import { tweens, ease } from "../core/Tween.js";
 import { UIText } from "./elements.js";
-import { createComboBar, createReticle, createWeaponCursor, createWeaponSlot } from "./cards.js";
+import { createReticle, createWeaponCursor, createWeaponSlot } from "./cards.js";
 
 const VIOLET = { colors: ["#e3d6ff", "#9b7bff"], glow: "#4a1f8a", intensity: 1.25 };
 const BLOOD = { colors: ["#ffb08a", "#ff2a10"], glow: "#ff1a00" };
@@ -43,13 +43,12 @@ export class UI {
     this.comboCount = add(new UIText({ text: "x2", font: "numbers", size: 64, anchor: "right", width: 300 }));
     this.comboMult = add(new UIText({ text: "1.05x", font: "numbers", size: 56, anchor: "left", width: 320, ...BLOOD }));
     this.comboRank = add(new UIText({ text: "", font: "title", size: 38, width: 560, wobble: 0.03 }));
-    this.comboBar = add(createComboBar());
     this.cashOut = add(new UIText({ text: "", font: "title", size: 46, width: 760, wobble: 0.03 }));
     this.comboCount.heatGain = 0.8;
     this.comboMult.heatGain = 1;
     this.comboRank.heatGain = 0.5;
     for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) el.sway = 0.04;
-    this.comboParts = [this.comboCount, this.comboMult, this.comboRank, this.comboBar];
+    this.comboParts = [this.comboCount, this.comboMult, this.comboRank];
     this.heat = 0;
     this.displayScore = 0;
     this.targetScore = 0;
@@ -135,7 +134,6 @@ export class UI {
     place(this.comboCount, -10 * k, top - 165 * k, w / 2 - margin);
     place(this.comboMult, 10 * k, top - 165 * k, w / 2 - margin);
     place(this.comboRank, 0, top - 250 * k);
-    place(this.comboBar, 0, top - 282 * k);
     place(this.cashOut, 0, top - 330 * k);
     place(this.big, 0, 40 * k);
 
@@ -337,12 +335,6 @@ export class UI {
     for (const el of this.comboParts) {
       if (el.u.reveal.value < 1) el.show({ duration: 0.25 });
     }
-  }
-
-  /** Fraction of the combo window left, drawn as the draining bar. */
-  setComboTimer(fraction) {
-    this.comboBar.fill = Math.max(0, fraction);
-    this.applyScale(this.comboBar);
   }
 
   hideCombo() {

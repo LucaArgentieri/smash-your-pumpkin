@@ -17,7 +17,9 @@ The combo is where high scores come from:
 
 - Every hit inside the combo window extends it and raises the point multiplier (up to x3).
 - Switching weapon mid-combo adds +2.
-- The window tightens as the combo grows (1.1 s down to 0.55 s), shown by the bar under the counter.
+- The window tightens as the combo grows (1.1 s down to 0.55 s). Instead of a timer bar, a pixelated
+  wall of fire closes in from the screen edges as the window runs out, charring the room behind it and
+  throbbing red when time is nearly gone. Banking the combo makes it flare; a miss snuffs it dull red.
 - Let it run out and it is **cashed in** for combo² × 3 points. Click empty table and it **breaks** for nothing.
 - Ranks: WICKED (5), GRIM (10), GHASTLY (20), UNHOLY (35), DAMNED (50), APOCALYPTIC (80).
 - The best score and the combo record are kept in the browser.

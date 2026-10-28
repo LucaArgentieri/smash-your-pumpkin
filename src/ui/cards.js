@@ -114,27 +114,6 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/** Draining bar under the combo: the time left to land the next hit. */
-export function createComboBar() {
-  const bar = new UIPanel({
-    width: 300,
-    height: 16,
-    intensity: 2.2,
-    draw: (ctx, w, h) => {
-      const gradient = ctx.createLinearGradient(0, 0, w, 0);
-      gradient.addColorStop(0, "#ff3a0a");
-      gradient.addColorStop(1, "#ffd27a");
-      ctx.fillStyle = "rgba(20, 6, 4, 0.9)";
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = gradient;
-      ctx.fillRect(3, 3, w - 6, h - 6);
-    },
-  });
-  bar.redraw();
-  bar.fill = 1;
-  return bar;
-}
-
 /** Cursor reticle drawn on the UI layer (the system cursor is hidden). */
 export function createReticle() {
   const size = 44;

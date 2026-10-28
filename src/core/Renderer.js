@@ -20,6 +20,9 @@ import {
   clamp,
   max,
   mod,
+  Fn,
+  If,
+  mx_noise_float,
 } from "three/tsl";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 
@@ -56,6 +59,11 @@ export class Renderer {
       vignette: uniform(1),
       pixelSize: uniform(1),
       dim: uniform(0),
+      // Combo fire vignette: strength, fraction of the combo window left
+      // (flames close in as it runs out) and a tint (orange, or red when broken).
+      fire: uniform(0),
+      fireLeft: uniform(1),
+      fireTint: uniform(new THREE.Color(1, 1, 1)),
     };
 
     this.scenePass = pass(scene, camera);
@@ -126,7 +134,8 @@ export class Renderer {
 
     const ui = uiColor.sample(uv());
     // UI pass is rendered over transparent black, so its rgb is premultiplied.
-    const room = vec3(r, g, b).mul(float(1).sub(u.dim.mul(0.5)));
+    // The combo fire burns into the room only; the UI stays clean on top.
+    const room = this.comboFire(centered, vec3(r, g, b)).mul(float(1).sub(u.dim.mul(0.5)));
     const composite = room.mul(float(1).sub(ui.a)).add(ui.rgb);
 
     let color = composite;
@@ -169,6 +178,48 @@ export class Renderer {
     color = max(color, vec3(0.018, 0.008, 0.03));
 
     return clamp(color, 0, 1);
+  }
+
+  /**
+   * Flames licking in from the screen edges while a combo is alive: a
+   * burning front that creeps towards the centre as the window to land the
+   * next hit runs out, charred dark with embers behind it, throbbing when
+   * time is nearly gone. Returns `scene` untouched when no combo is running.
+   */
+  comboFire(centered, scene) {
+    const u = this.uniforms;
+    return Fn(() => {
+      const out = vec3(scene).toVar();
+      If(u.fire.greaterThan(0.001), () => {
+        // Snap to the scene's pixel grid so the flames are as chunky as the room.
+        const cellUV = floor(screenUV.mul(screenSize).div(u.pixelSize)).add(0.5).mul(u.pixelSize).div(screenSize);
+        const c = cellUV.sub(0.5);
+        // Elliptical distance: 1 at the middle of each edge, ~1.4 in corners.
+        const d = length(c.mul(2));
+        const around = c.normalize();
+        // Licking tongues: fine noise around the edge, scrolling inwards.
+        const lick = mx_noise_float(vec3(around.mul(6), d.mul(9).sub(time.mul(4.5))));
+        const sway = mx_noise_float(vec3(around.mul(2.2), time.mul(0.7)));
+        const reach = mix(float(1.25), float(0.7), float(1).sub(u.fireLeft)).sub(u.fire.mul(0.05));
+        const front = d.add(lick.mul(0.13)).add(sway.mul(0.08));
+        // Everything past the front is burnt...
+        const burnt = smoothstep(reach.sub(0.02), reach.add(0.03), front);
+        // ...the front itself is a thin, hot band of flame...
+        const band = burnt.mul(float(1).sub(smoothstep(reach.add(0.01), reach.add(0.09), front)));
+        // ...and small sparks drift in the char.
+        const spark = mx_noise_float(vec3(around.mul(16), d.mul(26).sub(time.mul(6))));
+        const sparks = smoothstep(0.55, 0.7, spark).mul(burnt);
+        const heat = lick.mul(0.5).add(0.5);
+        const flameColor = mix(vec3(0.8, 0.12, 0.0), vec3(1.0, 0.62, 0.16), heat).mul(u.fireTint);
+        const urgency = float(1).sub(smoothstep(0, 0.35, u.fireLeft));
+        const throb = sin(time.mul(16)).mul(0.4).mul(urgency).add(1);
+        const strength = u.fire.min(1.6);
+        const charred = scene.mul(float(1).sub(burnt.mul(0.72).mul(strength.min(1))));
+        const glow = flameColor.mul(band.mul(1.5).add(sparks.mul(0.9))).mul(strength).mul(throb);
+        out.assign(charred.add(glow));
+      });
+      return out;
+    })();
   }
 
   resize() {
