@@ -10,7 +10,6 @@ export const PRESETS = {
     // Pixel ratio mostly sets UI sharpness (the scene has its own resolution),
     // so even the lowest tier keeps text crisp on high-density phones.
     pixelRatio: 1.25,
-    sceneLines: 210,
     bloom: 0,
     shadows: "none",
     shadowMapSize: 512,
@@ -23,7 +22,6 @@ export const PRESETS = {
   low: {
     label: "LOW",
     pixelRatio: 1.5,
-    sceneLines: 270,
     bloom: 0,
     shadows: "none",
     shadowMapSize: 512,
@@ -36,7 +34,6 @@ export const PRESETS = {
   medium: {
     label: "MED",
     pixelRatio: 2,
-    sceneLines: 340,
     bloom: 0.25,
     shadows: "lantern",
     shadowMapSize: 512,
@@ -49,7 +46,6 @@ export const PRESETS = {
   high: {
     label: "HIGH",
     pixelRatio: 2,
-    sceneLines: 400,
     bloom: 0.5,
     shadows: "all",
     shadowMapSize: 1024,

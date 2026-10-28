@@ -25,6 +25,8 @@ import {
   mx_noise_float,
 } from "three/tsl";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
+import { RETRO } from "../config.js";
+import { snapGrid } from "./retro.js";
 
 
 // 2x2 Bayer: (0,0)=0 (1,0)=2 (0,1)=3 (1,1)=1, i.e. (2x + 3y) mod 4.
@@ -76,18 +78,15 @@ export class Renderer {
     this.pipeline = new THREE.RenderPipeline(this.renderer);
     this.pipeline.outputColorTransform = false;
 
-    // Vertical resolution the 3D scene is rendered at before being upscaled
-    // with nearest filtering: the chunky look of the references, and the
-    // main reason the scene stays cheap on weak GPUs.
-    this.sceneLines = 400;
+    // The scene's low internal resolution (RETRO.lines) is the art style and
+    // also the main reason it stays cheap on weak GPUs.
     this.maxPixelRatio = 2;
     this.bloomScale = null;
   }
 
   /** Applies a quality preset (see core/Quality.js). */
-  setQuality({ pixelRatio, sceneLines, bloom }) {
+  setQuality({ pixelRatio, bloom }) {
     this.maxPixelRatio = pixelRatio;
-    this.sceneLines = sceneLines;
     if (bloom !== this.bloomScale) {
       this.bloomScale = bloom;
       this.pipeline.outputNode = this.buildOutput(bloom);
@@ -104,8 +103,10 @@ export class Renderer {
     const target = new THREE.RenderTarget(width, height, {
       type: THREE.UnsignedByteType,
       generateMipmaps: true,
-      minFilter: THREE.LinearMipmapLinearFilter,
-      magFilter: THREE.LinearFilter,
+      // Unfiltered texels for the PS1 look. Set here: changing filters on a
+      // render target texture afterwards would mean re-uploading it empty.
+      minFilter: THREE.NearestMipmapNearestFilter,
+      magFilter: THREE.NearestFilter,
       wrapS: THREE.RepeatWrapping,
       wrapT: THREE.ClampToEdgeWrapping,
     });
@@ -230,8 +231,11 @@ export class Renderer {
     // Measured on the shorter side, so portrait phones get as many scene
     // pixels across as landscape screens get top to bottom.
     const shortSide = Math.min(w, h) * this.renderer.getPixelRatio();
-    const scale = Math.min(1, Math.max(0.1, this.sceneLines / shortSide));
+    const scale = Math.min(1, Math.max(0.05, RETRO.lines / shortSide));
     this.scenePass.setResolutionScale(scale);
+    // Vertices snap to exactly the scene's pixel grid.
+    const pr = this.renderer.getPixelRatio();
+    snapGrid.value.set(Math.floor(w * pr * scale), Math.floor(h * pr * scale));
     this.uniforms.pixelSize.value = 1 / scale;
   }
 

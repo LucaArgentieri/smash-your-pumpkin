@@ -85,6 +85,12 @@ export const TOOLS = [
   },
 ];
 
+// The PS1 look: the 3D scene is rendered this many pixels across the
+// screen's shorter side, whatever the quality tier, and upscaled unfiltered.
+export const RETRO = {
+  lines: 200,
+};
+
 export const PALETTE = {
   night: 0x07030c,
   fog: 0x150820,
