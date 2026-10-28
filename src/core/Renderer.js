@@ -155,11 +155,15 @@ export class Renderer {
     const cell = floor(screenUV.mul(screenSize).div(u.pixelSize));
     const bayer = bayer4(cell);
     const steps = float(28);
-    color = floor(color.rgb.mul(steps).add(bayer.sub(0.5).mul(0.9)).add(0.5)).div(steps);
+    let gritty = floor(color.rgb.mul(steps).add(bayer.sub(0.5).mul(0.9)).add(0.5)).div(steps);
 
     // Film grain, tied to the same pixel grid so it reads as part of the image.
     const grain = fract(sin(dot(cell.add(floor(time.mul(24)).mul(17.13)), vec2(12.9898, 78.233))).mul(43758.5453));
-    color = color.add(grain.sub(0.5).mul(0.045));
+    gritty = gritty.add(grain.sub(0.5).mul(0.045));
+
+    // Dither and grain belong to the scene: text stays clean so it reads,
+    // especially where scene pixels are big (phones, low tiers).
+    color = mix(gritty, color.rgb, smoothstep(0.02, 0.35, ui.a));
 
     // Keep blacks slightly violet instead of pure black.
     color = max(color, vec3(0.018, 0.008, 0.03));
@@ -172,8 +176,10 @@ export class Renderer {
     const h = window.innerHeight;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.maxPixelRatio));
     this.renderer.setSize(w, h);
-    const drawingHeight = h * this.renderer.getPixelRatio();
-    const scale = Math.min(1, Math.max(0.1, this.sceneLines / drawingHeight));
+    // Measured on the shorter side, so portrait phones get as many scene
+    // pixels across as landscape screens get top to bottom.
+    const shortSide = Math.min(w, h) * this.renderer.getPixelRatio();
+    const scale = Math.min(1, Math.max(0.1, this.sceneLines / shortSide));
     this.scenePass.setResolutionScale(scale);
     this.uniforms.pixelSize.value = 1 / scale;
   }

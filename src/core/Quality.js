@@ -7,7 +7,9 @@ export const TIERS = ["minimal", "low", "medium", "high"];
 export const PRESETS = {
   minimal: {
     label: "MIN",
-    pixelRatio: 0.75,
+    // Pixel ratio mostly sets UI sharpness (the scene has its own resolution),
+    // so even the lowest tier keeps text crisp on high-density phones.
+    pixelRatio: 1.25,
     sceneLines: 210,
     bloom: 0,
     shadows: "none",
@@ -20,7 +22,7 @@ export const PRESETS = {
   },
   low: {
     label: "LOW",
-    pixelRatio: 1,
+    pixelRatio: 1.5,
     sceneLines: 270,
     bloom: 0,
     shadows: "none",
@@ -33,7 +35,7 @@ export const PRESETS = {
   },
   medium: {
     label: "MED",
-    pixelRatio: 1.5,
+    pixelRatio: 2,
     sceneLines: 340,
     bloom: 0.25,
     shadows: "lantern",

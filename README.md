@@ -3,11 +3,13 @@
 A Halloween rage room, successor to [paint-your-pumpkin](https://github.com/LucaArgentieri/paint-your-pumpkin).
 You sit at a table in a candlelit cabin and have 60 seconds to smash as many pumpkins as you can.
 
-Each card has a role:
+There is no tutorial: the weapons (keys 1–3, mouse wheel, or the slots at the bottom) are meant to be
+figured out by playing. The pointer becomes the selected weapon and swings with every blow. For
+reference:
 
-- **Fist** (1), *the grinder*: fast, cracks a pumpkin in three hits and grinds small shards into **dust** for a bonus.
-- **Mallet** (2), *the breaker*: slow, shatters a whole pumpkin in one blow, pumpkin bonus x2.
-- **Axe** (3), *the splitter*: cuts pumpkins and shards in two, x2 points per piece.
+- **Fist**: fast, cracks a pumpkin in three hits and grinds small shards into **dust** for a bonus.
+- **Mallet**: slow, shatters a whole pumpkin in one blow, pumpkin bonus x2.
+- **Axe**: cuts pumpkins and shards in two, x2 points per piece.
 
 ### The combo
 

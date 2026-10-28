@@ -158,6 +158,14 @@ export class Game {
     window.addEventListener("pointercancel", release);
     window.addEventListener("blur", release);
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (this.state !== "playing" || e.deltaY === 0) return;
+        this.selectTool((this.tool + Math.sign(e.deltaY) + TOOLS.length) % TOOLS.length);
+      },
+      { passive: true },
+    );
     window.addEventListener("keydown", (e) => this.onKey(e));
   }
 
@@ -197,7 +205,6 @@ export class Game {
     if (index === this.tool && this.state === "playing") return;
     this.tool = index;
     this.ui.select(index);
-    this.ui.describeTool(index, { flash: this.state === "playing" });
   }
 
   // --- Round flow ---------------------------------------------------------------
@@ -206,8 +213,8 @@ export class Game {
     if (this.state === "title") this.ui.hideTitle();
     else {
       this.ui.hideResults();
-      this.ui.showCards(0.3);
     }
+    this.ui.setPlaying(true);
     this.dim(0);
     this.cameraMode = "play";
     this.turnPumpkin(0);
@@ -245,6 +252,7 @@ export class Game {
     }
     await this.ui.announce(TEXT.timeUp, { hold: 0.9, style: "blood" });
     this.ui.hideHUD();
+    this.ui.setPlaying(false);
     // The leaderboard shot: lighter dimming so the scene stays part of it.
     this.dim(0.35);
     this.cameraMode = "showcase";
@@ -311,6 +319,7 @@ export class Game {
     this.raycaster.setFromCamera(this.ndc, this.camera);
     const targets = this.destruction.targets(this.pumpkin);
     const hit = this.raycaster.intersectObjects(targets, false)[0] ?? this.nearMiss(targets);
+    if (hit || deliberate) this.ui.strike();
     if (!hit) {
       // A deliberate swing at nothing breaks the combo (no cash-out). Held
       // swings sweeping over empty table are only throttled.
