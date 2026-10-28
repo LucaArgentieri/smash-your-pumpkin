@@ -14,10 +14,10 @@ import {
   texture,
   time,
   uniform,
-  uv,
   vec2,
   vec3,
 } from "three/tsl";
+import { affineUV, ps1, unfiltered } from "../core/retro.js";
 
 const EMBER = color(0xff5a14);
 const cache = new Map();
@@ -63,14 +63,15 @@ export function getPumpkinMaterials(variant, look, stemLook) {
   const flicker = mx_noise_float(vec2(time.mul(4), seed)).mul(0.4).add(1);
 
   // --- Shell -------------------------------------------------------------
-  const outer = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: look.roughness });
-  const albedo = look.map ? texture(look.map, uv()).rgb.mul(color(look.color)) : color(look.color);
+  const outer = ps1(new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: look.roughness }));
+  const skinUV = affineUV();
+  const albedo = look.map ? texture(unfiltered(look.map), skinUV).rgb.mul(color(look.color)) : color(look.color);
   outer.colorNode = albedo;
 
   // Carved faces: the model's emissive map if it has one, otherwise the very
   // bright parts of the albedo (generated models often paint the glow in).
   let faceGlow = vec3(0);
-  if (look.emissiveMap) faceGlow = texture(look.emissiveMap, uv()).rgb.mul(color(look.emissive));
+  if (look.emissiveMap) faceGlow = texture(unfiltered(look.emissiveMap), skinUV).rgb.mul(color(look.emissive));
   else if (variant.glowFromAlbedo && look.map) faceGlow = albedo.mul(smoothstep(0.55, 0.85, luminance(albedo)));
   outer.emissiveNode = faceGlow.mul(flicker).mul(4.5).add(rim).add(flash);
   outer.opacityNode = dissolve.x;
@@ -79,7 +80,7 @@ export function getPumpkinMaterials(variant, look, stemLook) {
   // --- Flesh (cut faces) --------------------------------------------------
   // One noise lookup for fibres and a second, higher-frequency one
   // thresholded into seeds: far cheaper than fractal + cellular noise.
-  const inner = new THREE.MeshStandardNodeMaterial({ roughness: 0.75, metalness: 0 });
+  const inner = ps1(new THREE.MeshStandardNodeMaterial({ roughness: 0.75, metalness: 0 }));
   const p = positionLocal.mul(5);
   const fibres = mx_noise_float(vec3(p.x.mul(0.6), p.y.mul(3), p.z.mul(0.6)));
   const [light, dark] = variant.flesh ?? [0xffb52e, 0xe0561a];
@@ -93,8 +94,8 @@ export function getPumpkinMaterials(variant, look, stemLook) {
   inner.alphaTest = 0.5;
 
   // --- Stem ---------------------------------------------------------------
-  const stem = new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: stemLook.roughness });
-  stem.colorNode = stemLook.map ? texture(stemLook.map, uv()).rgb.mul(color(stemLook.color)) : color(stemLook.color);
+  const stem = ps1(new THREE.MeshStandardNodeMaterial({ metalness: 0, roughness: stemLook.roughness }));
+  stem.colorNode = stemLook.map ? texture(unfiltered(stemLook.map), affineUV()).rgb.mul(color(stemLook.color)) : color(stemLook.color);
   stem.emissiveNode = rim.add(flash);
   stem.opacityNode = dissolve.x;
   stem.alphaTest = 0.5;

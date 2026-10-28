@@ -1,6 +1,7 @@
 import * as THREE from "three/webgpu";
 import { color, instanceIndex, hash, mix, float, vec3 } from "three/tsl";
 import { live } from "../core/Quality.js";
+import { ps1 } from "../core/retro.js";
 
 const GRAVITY = -9.8;
 const FLOOR = 0.02;
@@ -29,7 +30,7 @@ export class Debris {
   }
 
   chunkMaterial() {
-    const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.7 });
+    const material = ps1(new THREE.MeshStandardNodeMaterial({ roughness: 0.7 }));
     // Mix of flesh tones and pale seeds, picked per instance.
     const pick = hash(instanceIndex);
     const flesh = mix(color(0xff9a24), color(0xe0561a), hash(instanceIndex.add(7)));
@@ -39,7 +40,7 @@ export class Debris {
   }
 
   emberMaterial() {
-    const material = new THREE.MeshBasicNodeMaterial();
+    const material = ps1(new THREE.MeshBasicNodeMaterial());
     material.colorNode = mix(color(0xff4a10), color(0xffc457), hash(instanceIndex)).mul(vec3(6));
     return material;
   }

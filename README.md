@@ -32,6 +32,12 @@ shoulder while it turns to gaze at the moon, drifting slowly like an arcade attr
 Holding the button keeps swinging (held swings never break the combo), and near misses still count, which
 helps on touch screens. Tuning lives in `COMBO` and `TOOLS` in `src/config.js`.
 
+## Look
+
+PS1 era on purpose, at every quality tier: a 200-line scene upscaled without filtering, vertices
+snapped to that pixel grid (the wobble when the camera moves), affine texture mapping, unfiltered
+textures and low-poly props (`src/core/retro.js`), plus dithering and grain on the scene only.
+
 ## Stack
 
 - three.js `WebGPURenderer` (falls back to WebGL2) with TSL for every material and for post-processing
@@ -77,16 +83,17 @@ automatically** when frames run slower than 45 fps for about 4 seconds. Players 
 clicking the label in the corner of the title and results screens, or by pressing **Q**. The choice is
 saved in the browser.
 
-| Tier | Scene lines | Pixel ratio | Bloom | Shadows | Candle lights | Max shards |
-| --- | --- | --- | --- | --- | --- | --- |
-| MIN | 210 | 0.75 | off | off | 0 | 50 |
-| LOW | 270 | 1 | off | off | 0 | 80 |
-| MED | 340 | ≤ 1.5 | ¼ res | lantern | 1 | 150 |
-| HIGH | 400 | ≤ 2 | ½ res | lantern + moon | 3 | 220 |
+| Tier | Pixel ratio (UI sharpness) | Bloom | Shadows | Candle lights | Max shards |
+| --- | --- | --- | --- | --- | --- |
+| MIN | ≥ 1.25 | off | off | 0 | 50 |
+| LOW | ≤ 1.5 | off | off | 0 | 80 |
+| MED | ≤ 2 | ¼ res | lantern | 1 | 150 |
+| HIGH | ≤ 2 | ½ res | lantern + moon | 3 | 220 |
 
 Other measures that apply to every tier:
 
-- The 3D scene is always rendered at a low internal resolution, which is the look and also the biggest saving.
+- The 3D scene is always rendered at a PS1-like resolution (`RETRO.lines` = 200 pixels across the
+  shorter screen side, in `src/config.js`), which is the look and also the biggest saving.
 - Procedural textures (table, moon) are baked once at load instead of computing noise for every pixel.
 - Voronoi fracturing runs in Web Workers; each pumpkin is pre-fractured while it drops onto the table.
 - Shaders compile during loading (hidden warm-up draws), not on the first hit.

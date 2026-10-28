@@ -25,6 +25,7 @@ import {
 } from "three/tsl";
 import { PALETTE } from "../config.js";
 import { createTableMarks } from "./tableMarks.js";
+import { affineUV, ps1 } from "../core/retro.js";
 
 export const TABLE = { width: 9, depth: 5, thickness: 0.4 };
 export const MOON_POSITION = new THREE.Vector3(4.2, 2.3, -17);
@@ -117,8 +118,9 @@ export class Cabin {
   }
 
   addTable() {
-    const geometry = new THREE.BoxGeometry(TABLE.width, TABLE.thickness, TABLE.depth);
-    const material = new THREE.MeshStandardNodeMaterial({ metalness: 0 });
+    // Tessellated like a PS1 floor so affine texturing swims rather than tears.
+    const geometry = new THREE.BoxGeometry(TABLE.width, TABLE.thickness, TABLE.depth, 18, 1, 10);
+    const material = ps1(new THREE.MeshStandardNodeMaterial({ metalness: 0 }));
 
     // The wood is procedural but baked once: drawing it is a texture fetch.
     // Top-face UVs map to table-space x/z.
@@ -146,7 +148,7 @@ export class Cabin {
     wood = mix(wood, color(0x8f7c5a), marks.g.mul(0.85));
     const roughness = mix(clamp(grain.add(0.5), 0, 1), float(0), marks.g);
 
-    const baked = texture(this.renderer.bake(vec4(wood, roughness), 1024, 576));
+    const baked = texture(this.renderer.bake(vec4(wood, roughness), 512, 288), affineUV());
     material.colorNode = baked.rgb;
     material.roughnessNode = mix(float(0.75), float(0.95), baked.a);
 
@@ -157,7 +159,7 @@ export class Cabin {
 
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(60, 60),
-      new THREE.MeshStandardNodeMaterial({ color: 0x0c0610, roughness: 1 }),
+      ps1(new THREE.MeshStandardNodeMaterial({ color: 0x0c0610, roughness: 1 })),
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -4;
@@ -170,18 +172,18 @@ export class Cabin {
     group.position.copy(position);
 
     const seed = position.x * 3.7;
-    const wax = new THREE.MeshStandardNodeMaterial({ roughness: 0.6 });
+    const wax = ps1(new THREE.MeshStandardNodeMaterial({ roughness: 0.6 }));
     const drip = mx_noise_float(vec3(uv().x.mul(12), positionLocal.y.mul(3), seed));
     wax.colorNode = mix(color(0xe9dcc0), color(0xb8a27c), clamp(drip.add(0.3), 0, 1));
     // Light scattering through the wax near the flame.
     wax.emissiveNode = color(0xff9a40).mul(smoothstep(height * 0.15, height * 0.5, positionLocal.y).mul(0.5));
 
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, height, 12), wax);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, height, 8), wax);
     body.position.y = height / 2;
     body.castShadow = true;
     group.add(body);
 
-    const flameMaterial = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false });
+    const flameMaterial = ps1(new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false }));
     const flicker = mx_noise_float(vec2(time.mul(5), seed));
     const sway = vec3(
       sin(time.mul(7).add(seed)).mul(0.012).add(flicker.mul(0.015)),
@@ -191,7 +193,7 @@ export class Cabin {
     flameMaterial.positionNode = positionLocal.add(sway.mul(positionLocal.y.add(0.06).mul(14)));
     const core = float(1).sub(smoothstep(-0.04, 0.09, positionLocal.y));
     flameMaterial.colorNode = mix(color(0xff5a14), color(0xffe9a8), core).mul(flicker.mul(0.4).add(4));
-    const flame = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8).scale(1, 2.4, 1), flameMaterial);
+    const flame = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5).scale(1, 2.4, 1), flameMaterial);
     flame.position.y = height + 0.1;
     group.add(flame);
 
@@ -204,7 +206,7 @@ export class Cabin {
   }
 
   addMoon() {
-    const material = new THREE.MeshBasicNodeMaterial({ fog: false });
+    const material = ps1(new THREE.MeshBasicNodeMaterial({ fog: false }));
     // Surface baked in the sphere's UV space (the same unit-sphere point the
     // geometry has at that UV), lit by a cheap rim term at draw time.
     const phi = uv().x.mul(Math.PI * 2);
@@ -213,11 +215,11 @@ export class Cabin {
     const craters = smoothstep(0.0, 0.35, mx_worley_noise_float(p.mul(1.6)));
     const mottling = mx_fractal_noise_float(p.mul(2.5), 4, 2, 0.5).mul(0.5).add(0.5);
     const surface = mix(color(0x6b4fb0), color(PALETTE.moon), clamp(mottling.mul(craters), 0, 1));
-    const baked = texture(this.renderer.bake(surface, 512, 256));
+    const baked = texture(this.renderer.bake(surface, 256, 128));
     const rim = smoothstep(0.2, 1, positionLocal.z.div(2.6));
     material.colorNode = baked.rgb.mul(rim.mul(0.9).add(0.5)).mul(1.6);
 
-    const moon = new THREE.Mesh(new THREE.SphereGeometry(2.6, 48, 24), material);
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(2.6, 24, 14), material);
     moon.position.copy(MOON_POSITION);
     moon.lookAt(0, 2, 5);
     this.scene.add(moon);
