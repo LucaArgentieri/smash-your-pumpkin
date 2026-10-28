@@ -7,6 +7,10 @@ import { createComboBar, createReticle, createToolCard } from "./cards.js";
 const VIOLET = { colors: ["#e3d6ff", "#9b7bff"], glow: "#4a1f8a", intensity: 1.25 };
 const BLOOD = { colors: ["#ffb08a", "#ff2a10"], glow: "#ff1a00" };
 
+// Combo "heat" (0..1) drives the Balatro-style escalation: the higher the
+// combo, the bigger, brighter and shakier the numbers get.
+const HEAT_COMBO = 50;
+
 /**
  * Every bit of interface, rendered by an orthographic camera into its own
  * pass and composited over the scene. Coordinates are CSS pixels with the
@@ -38,9 +42,20 @@ export class UI {
     this.scoreValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "left", width: 260 }));
     this.pumpkinsLabel = add(new UIText({ text: TEXT.pumpkins, size: 20, anchor: "right", width: 200, ...VIOLET }));
     this.pumpkinsValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "right", width: 160 }));
-    this.combo = add(new UIText({ text: "x2 COMBO", font: "title", size: 54, width: 620, wobble: 0.04 }));
+    // Combo, split like Balatro's chips x mult: count, multiplier and rank.
+    this.comboCount = add(new UIText({ text: "x2", font: "numbers", size: 64, anchor: "right", width: 300 }));
+    this.comboMult = add(new UIText({ text: "1.05x", font: "numbers", size: 56, anchor: "left", width: 320, ...BLOOD }));
+    this.comboRank = add(new UIText({ text: "", font: "title", size: 38, width: 560, wobble: 0.03 }));
     this.comboBar = add(createComboBar());
-    this.cashOut = add(new UIText({ text: "", font: "title", size: 46, width: 700, wobble: 0.03 }));
+    this.cashOut = add(new UIText({ text: "", font: "title", size: 46, width: 760, wobble: 0.03 }));
+    this.comboCount.heatGain = 0.8;
+    this.comboMult.heatGain = 1;
+    this.comboRank.heatGain = 0.5;
+    for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) el.sway = 0.04;
+    this.comboParts = [this.comboCount, this.comboMult, this.comboRank, this.comboBar];
+    this.heat = 0;
+    this.displayScore = 0;
+    this.targetScore = 0;
 
     // Big centre messages: READY / SMASH / TIME'S UP.
     this.big = add(new UIText({ text: TEXT.timeUp, font: "title", size: 150, width: 980, wobble: 0.02 }));
@@ -48,12 +63,12 @@ export class UI {
     // Results.
     this.resultsTitle = add(new UIText({ text: TEXT.results, font: "title", size: 72, width: 980, wobble: 0.01 }));
     this.rows = [TEXT.pumpkins, TEXT.shards, TEXT.bestCombo].map((label) => ({
-      label: add(new UIText({ text: label, size: 28, anchor: "left", width: 300, ...VIOLET })),
+      label: add(new UIText({ text: label, size: 28, anchor: "left", width: 300, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" })),
       value: add(new UIText({ text: "0", font: "numbers", size: 46, anchor: "right", width: 220 })),
     }));
     this.finalScore = add(new UIText({ text: "0", font: "numbers", size: 110, width: 620, wobble: 0.015 }));
-    this.bestLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET }));
-    this.recordLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET }));
+    this.bestLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" }));
+    this.recordLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" }));
     this.again = add(new UIText({ text: TEXT.again, font: "title", size: 76, wobble: 0.03 }));
 
     // Tool cards.
@@ -97,9 +112,9 @@ export class UI {
 
     const place = (el, x, y, maxWidth = fitWidth) => {
       el.home = { x, y };
-      const fit = Math.min(1, maxWidth / (el.boxWidth * k));
-      el.baseScale = k * fit;
-      this.applyScale(el);
+      el.maxScale = maxWidth / el.boxWidth;
+      el.layoutScale = Math.min(k, el.maxScale);
+      this.heatScale(el);
       el.position.set(x, y, 0);
     };
 
@@ -119,9 +134,11 @@ export class UI {
     place(this.scoreValue, left + margin, top - 80 * k, w / 2 - margin - 110 * k);
     place(this.pumpkinsLabel, right - margin, top - 34 * k);
     place(this.pumpkinsValue, right - margin, top - 80 * k, w / 2 - margin - 110 * k);
-    place(this.combo, 0, top - 160 * k);
-    place(this.comboBar, 0, top - 198 * k);
-    place(this.cashOut, 0, top - 245 * k);
+    place(this.comboCount, -10 * k, top - 165 * k, w / 2 - margin);
+    place(this.comboMult, 10 * k, top - 165 * k, w / 2 - margin);
+    place(this.comboRank, 0, top - 250 * k);
+    place(this.comboBar, 0, top - 282 * k);
+    place(this.cashOut, 0, top - 330 * k);
     place(this.big, 0, 40 * k);
 
     // Results hide the cards, so they can use the whole height.
@@ -143,6 +160,12 @@ export class UI {
       card.baseScale = Math.min(k, (spacing * 0.92) / card.boxWidth);
       this.applyScale(card);
     });
+  }
+
+  /** Layout scale grown by the current heat, never wider than its slot. */
+  heatScale(el, heat = this.heat) {
+    el.baseScale = Math.min(el.maxScale ?? Infinity, el.layoutScale * (1 + (el.heatGain ?? 0) * heat));
+    this.applyScale(el);
   }
 
   applyScale(el) {
@@ -202,7 +225,7 @@ export class UI {
   }
 
   hideHUD() {
-    [this.timer, this.scoreLabel, this.scoreValue, this.pumpkinsLabel, this.pumpkinsValue, this.combo, this.comboBar, this.hint].forEach((el) =>
+    [this.timer, this.scoreLabel, this.scoreValue, this.pumpkinsLabel, this.pumpkinsValue, ...this.comboParts, this.hint].forEach((el) =>
       el.hide({ duration: 0.5 }),
     );
   }
@@ -271,9 +294,16 @@ export class UI {
     }
   }
 
+  /** The score rolls up to its new value; bigger gains kick harder. */
   setScore(score) {
-    this.scoreValue.setText(String(score));
-    this.punch(this.scoreValue, 0.5);
+    const gain = score - this.targetScore;
+    this.targetScore = score;
+    if (gain <= 0) {
+      this.displayScore = score;
+      this.scoreValue.setText(String(score));
+      return;
+    }
+    this.punch(this.scoreValue, Math.min(1.5, 0.3 + gain / 400));
   }
 
   setPumpkins(count) {
@@ -281,13 +311,24 @@ export class UI {
     this.punch(this.pumpkinsValue, 0.8);
   }
 
-  /** Combo counter with its rank and multiplier; `rankUp` makes it flare. */
+  heatFor(combo) {
+    return Math.min(1, Math.max(0, combo - 1) / HEAT_COMBO);
+  }
+
+  /** Combo count, multiplier and rank; they grow and burn hotter with it. */
   setCombo(combo, rank, multiplier, { rankUp = false } = {}) {
     if (combo < 2) return;
-    this.combo.setText(`x${combo} ${rank ?? TEXT.combo}  ·  ${multiplier.toFixed(2)}x`);
-    this.combo.u.intensity.value = rankUp ? 3 : 1.6;
-    this.punch(this.combo, rankUp ? 1.2 : 0.5);
-    for (const el of [this.combo, this.comboBar]) {
+    this.heat = this.heatFor(combo);
+    const h = this.heat;
+    this.comboCount.setText(`x${combo}`);
+    this.comboMult.setText(`${multiplier.toFixed(2)}x`);
+    this.comboRank.setText(rank ?? TEXT.combo);
+    for (const el of [this.comboCount, this.comboMult, this.comboRank]) {
+      this.heatScale(el);
+      el.u.intensity.value = 1.5 + h * 2 + (rankUp ? 1.5 : 0);
+      this.punch(el, (rankUp ? 1.4 : 0.4) + h * 0.6);
+    }
+    for (const el of this.comboParts) {
       if (el.u.reveal.value < 1) el.show({ duration: 0.25 });
     }
   }
@@ -299,17 +340,21 @@ export class UI {
   }
 
   hideCombo() {
-    this.combo.hide({ duration: 0.4 });
-    this.comboBar.hide({ duration: 0.3 });
+    this.heat = 0;
+    for (const el of this.comboParts) el.hide({ duration: 0.4 });
   }
 
-  /** Big line under the combo when it is banked (or lost). */
-  showCashOut(text, { broken = false } = {}) {
+  /** Big line under the combo when it is banked (or lost), sized by the combo. */
+  showCashOut(text, { broken = false, combo = 0 } = {}) {
     const el = this.cashOut;
+    const h = this.heatFor(combo);
     el.setText(text);
-    el.u.intensity.value = broken ? 1.2 : 2.6;
+    el.heatGain = broken ? 0 : 1.2;
+    this.heatScale(el, h);
+    el.shake = broken ? 0 : h;
+    el.u.intensity.value = broken ? 1.2 : 2.6 + h * 2;
     el.u.reveal.value = 0;
-    this.punch(el, 1);
+    this.punch(el, 1 + h);
     el.show({ duration: 0.2 });
     if (this.cashOutTimer) tweens.cancel(this.cashOutTimer);
     this.cashOutTimer = tweens.after(1.3, () => el.hide({ duration: 0.6 }));
@@ -335,9 +380,10 @@ export class UI {
     const y = (v.y * this.h) / 2 + 30 * this.k;
 
     p.setText(text);
-    p.baseScale = this.k * (blood ? 1.15 : 0.9);
-    p.punch = 0.5;
-    p.u.intensity.value = blood ? 2.4 : 1.7;
+    p.baseScale = this.k * (blood ? 1.15 : 0.9) * (1 + this.heat * 1.1);
+    p.punch = 0.5 + this.heat;
+    p.rotation.z = (Math.random() - 0.5) * 0.2 * (0.5 + this.heat);
+    p.u.intensity.value = (blood ? 2.4 : 1.7) + this.heat * 2;
     p.position.set(x + (Math.random() - 0.5) * 30 * this.k, y, 0);
     p.u.reveal.value = 0;
     tweens.kill(p.u.reveal, "value");
@@ -406,5 +452,27 @@ export class UI {
     }
     this.reticle.visible = !this.pointer.touch && this.pointer.seen;
     this.reticle.position.set(this.pointer.x, this.pointer.y, 0);
+
+    this.time = (this.time ?? 0) + dt;
+    this.updateJuice(dt);
+  }
+
+  /** Sway and shake of hot text, and the rolling score counter. */
+  updateJuice(dt) {
+    const t = this.time;
+    for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) {
+      const heat = el === this.cashOut ? (el.shake ?? 0) : this.heat;
+      el.rotation.z = Math.sin(t * (2 + heat * 4) + el.u.seed.value) * el.sway * (0.3 + heat * 1.4);
+      // Past half heat the numbers start to tremble.
+      const tremble = Math.max(0, heat - 0.4) * 7 * this.k;
+      el.position.x = el.home.x + (Math.random() - 0.5) * tremble;
+      el.position.y = el.home.y + (Math.random() - 0.5) * tremble;
+    }
+
+    if (this.displayScore !== this.targetScore) {
+      const step = Math.max(1, Math.ceil((this.targetScore - this.displayScore) * Math.min(1, dt * 10)));
+      this.displayScore = Math.min(this.targetScore, this.displayScore + step);
+      this.scoreValue.setText(String(this.displayScore));
+    }
   }
 }

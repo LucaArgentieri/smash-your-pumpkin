@@ -4,19 +4,33 @@ import { FracturePool } from "../core/FracturePool.js";
 import { Physics } from "../core/Physics.js";
 import { live, Quality } from "../core/Quality.js";
 import { Renderer } from "../core/Renderer.js";
-import { tweens } from "../core/Tween.js";
+import { ease, tweens } from "../core/Tween.js";
 import { Debris } from "../fx/Debris.js";
 import { Pumpkin } from "../pumpkins/Pumpkin.js";
 import { VARIANTS } from "../pumpkins/variants.js";
 import { getPumpkinMaterials } from "../pumpkins/materials.js";
 import { loadPumpkinModel } from "../pumpkins/models.js";
 import { UI } from "../ui/UI.js";
-import { Cabin } from "../world/Cabin.js";
+import { Cabin, MOON_POSITION } from "../world/Cabin.js";
 import { Destruction } from "./Destruction.js";
 
 const PUMPKIN_SPOT = new THREE.Vector3(0, 0, 0.15);
 const LOOK_AT = new THREE.Vector3(0, 0.85, 0);
 const CAMERA_HOME = new THREE.Vector3(0, 2.75, 4.5);
+// Results / leaderboard shot: low, over the pumpkin's shoulder while it gazes
+// at the moon, drifting like an arcade attract mode.
+const TO_MOON = MOON_POSITION.clone().sub(PUMPKIN_SPOT).normalize();
+const TO_MOON_FLAT = new THREE.Vector3(TO_MOON.x, 0, TO_MOON.z).normalize();
+const MOON_GAZE = Math.atan2(TO_MOON.x, TO_MOON.z);
+const ACROSS_MOON = new THREE.Vector3(-TO_MOON_FLAT.z, 0, TO_MOON_FLAT.x);
+// Framed so the pumpkin sits bottom-right and the moon top-left, leaving the
+// centre for the results / leaderboard text.
+const SHOWCASE_POSITION = PUMPKIN_SPOT.clone()
+  .addScaledVector(TO_MOON_FLAT, -3)
+  .addScaledVector(ACROSS_MOON, -2.4)
+  .add(new THREE.Vector3(0, 1.6, 0));
+const SHOWCASE_LOOK = PUMPKIN_SPOT.clone().addScaledVector(TO_MOON, 9).addScaledVector(ACROSS_MOON, 2);
+
 const BEST_KEY = "smash-your-pumpkin:best";
 const COMBO_KEY = "smash-your-pumpkin:combo-record";
 // How far (world units) a click may miss a shard and still count: small
@@ -59,6 +73,9 @@ export class Game {
     this.tool = 0;
     this.cooldownUntil = 0;
     this.pointerHeld = false;
+    this.cameraMode = "play";
+    this.cameraPosition = CAMERA_HOME.clone();
+    this.cameraLook = LOOK_AT.clone();
     this.deck = [];
     this.state = "loading";
     this.resetStats();
@@ -192,6 +209,8 @@ export class Game {
       this.ui.showCards(0.3);
     }
     this.dim(0);
+    this.cameraMode = "play";
+    this.turnPumpkin(0);
     this.destruction.clear();
     this.state = "intro";
     this.resetStats();
@@ -224,10 +243,12 @@ export class Game {
       this.cabin.setQuality(this.pendingQuality);
       this.pendingQuality = null;
     }
-    this.ui.combo.hide({ duration: 0.3 });
     await this.ui.announce(TEXT.timeUp, { hold: 0.9, style: "blood" });
     this.ui.hideHUD();
-    this.dim(1);
+    // The leaderboard shot: lighter dimming so the scene stays part of it.
+    this.dim(0.35);
+    this.cameraMode = "showcase";
+    this.turnPumpkin(MOON_GAZE);
 
     const previousBest = readNumber(BEST_KEY);
     const isBest = this.score > previousBest;
@@ -273,6 +294,13 @@ export class Game {
     });
     this.pumpkin = pumpkin;
     pumpkin.spawn(PUMPKIN_SPOT);
+    if (this.cameraMode === "showcase") pumpkin.mesh.rotation.y = MOON_GAZE;
+  }
+
+  /** Slowly turns the pumpkin on the table (towards the moon for results). */
+  turnPumpkin(angle) {
+    const mesh = this.pumpkin?.mesh;
+    if (mesh) tweens.to(mesh.rotation, "y", angle, 1.8, { easing: ease.inOutQuad });
   }
 
   // --- Smashing -----------------------------------------------------------------
@@ -375,13 +403,13 @@ export class Game {
     this.ui.hideCombo();
     if (combo < COMBO.minCashOut) return;
     if (!cashOut) {
-      this.ui.showCashOut(`${TEXT.broken} · x${combo}`, { broken: true });
+      this.ui.showCashOut(`${TEXT.broken} · x${combo}`, { broken: true, combo });
       return;
     }
     const bonus = Math.round(combo * combo * COMBO.cashOut);
     this.score += bonus;
     this.ui.setScore(this.score);
-    this.ui.showCashOut(`x${combo} ${this.comboRank(combo) ?? TEXT.combo}  +${bonus}`);
+    this.ui.showCashOut(`x${combo} ${this.comboRank(combo) ?? TEXT.combo}  +${bonus}`, { combo });
   }
 
   register(result, point, tool, pumpkin, toolIndex) {
@@ -465,21 +493,46 @@ export class Game {
   }
 
   updateCamera(dt) {
-    // Gentle parallax towards the pointer plus decaying screen shake.
-    const sway = this.ui.pointer.touch || this.reducedMotion ? 0 : 1;
-    const target = CAMERA_HOME.clone();
-    target.x += this.ndc.x * 0.25 * sway;
-    target.y += this.ndc.y * 0.12 * sway;
-    this.camera.position.lerp(target, Math.min(1, dt * 3));
+    const target = _cameraTarget;
+    const look = _lookTarget;
+    let roll = 0;
+    if (this.cameraMode === "showcase") {
+      // Slow, layered sine drift and roll: the arcade attract-mode float.
+      const t = this.elapsed;
+      const drift = this.reducedMotion ? 0.3 : 1;
+      target.copy(SHOWCASE_POSITION);
+      target.x += Math.sin(t * 0.21) * 0.45 * drift;
+      target.y += Math.sin(t * 0.33) * 0.12 * drift;
+      target.z += Math.sin(t * 0.17) * 0.3 * drift;
+      look.copy(SHOWCASE_LOOK);
+      look.x += Math.sin(t * 0.19) * 0.6 * drift;
+      look.y += Math.sin(t * 0.27) * 0.25 * drift;
+      roll = Math.sin(t * 0.23) * 0.03 * drift;
+    } else {
+      // Gentle parallax towards the pointer.
+      const sway = this.ui.pointer.touch || this.reducedMotion ? 0 : 1;
+      target.copy(CAMERA_HOME);
+      target.x += this.ndc.x * 0.25 * sway;
+      target.y += this.ndc.y * 0.12 * sway;
+      look.copy(LOOK_AT);
+    }
+    const blend = 1 - Math.exp(-dt * (this.cameraMode === "showcase" ? 1.1 : 3));
+    this.cameraPosition.lerp(target, blend);
+    this.cameraLook.lerp(look, blend);
 
+    // Decaying screen shake on top of the smoothed pose.
     this.shake = Math.max(0, this.shake - dt * 2.8);
     const s = this.shake * this.shake * 0.12;
-    this.camera.lookAt(LOOK_AT);
+    this.camera.position.copy(this.cameraPosition);
     this.camera.position.x += (Math.random() - 0.5) * s;
     this.camera.position.y += (Math.random() - 0.5) * s;
-    this.camera.rotation.z += (Math.random() - 0.5) * s * 0.5;
+    this.camera.lookAt(this.cameraLook);
+    this.camera.rotation.z += roll + (Math.random() - 0.5) * s * 0.5;
   }
 }
+
+const _cameraTarget = new THREE.Vector3();
+const _lookTarget = new THREE.Vector3();
 
 function shuffle(list) {
   for (let i = list.length - 1; i > 0; i--) {

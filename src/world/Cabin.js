@@ -27,6 +27,7 @@ import { PALETTE } from "../config.js";
 import { createTableMarks } from "./tableMarks.js";
 
 export const TABLE = { width: 9, depth: 5, thickness: 0.4 };
+export const MOON_POSITION = new THREE.Vector3(4.2, 2.3, -17);
 
 const CANDLES = [
   { x: -3.3, z: -1.4, height: 1.0 },
@@ -217,7 +218,7 @@ export class Cabin {
     material.colorNode = baked.rgb.mul(rim.mul(0.9).add(0.5)).mul(1.6);
 
     const moon = new THREE.Mesh(new THREE.SphereGeometry(2.6, 48, 24), material);
-    moon.position.set(4.2, 2.3, -17);
+    moon.position.copy(MOON_POSITION);
     moon.lookAt(0, 2, 5);
     this.scene.add(moon);
 

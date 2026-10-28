@@ -19,6 +19,11 @@ The combo is where high scores come from:
 - Let it run out and it is **cashed in** for combo² × 3 points. Click empty table and it **breaks** for nothing.
 - Ranks: WICKED (5), GRIM (10), GHASTLY (20), UNHOLY (35), DAMNED (50), APOCALYPTIC (80).
 - The best score and the combo record are kept in the browser.
+- Like Balatro, the numbers escalate with the combo: count, multiplier, rank, score popups and the
+  cash-out grow, glow hotter, sway and, past half heat, tremble. The score rolls up rather than jumping.
+
+The results screen (where the leaderboard will live) switches to a low camera over the pumpkin's
+shoulder while it turns to gaze at the moon, drifting slowly like an arcade attract mode.
 
 Holding the button keeps swinging (held swings never break the combo), and near misses still count, which
 helps on touch screens. Tuning lives in `COMBO` and `TOOLS` in `src/config.js`.
