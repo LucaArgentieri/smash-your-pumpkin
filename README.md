@@ -28,7 +28,11 @@ In dev builds the game instance is exposed as `window.game`, for example `game.t
 
 ## Deploy
 
-Netlify picks up `netlify.toml`: `npm run build`, publish `dist/`.
+**GitHub Pages**: every push to `main` runs `.github/workflows/deploy.yml`, which builds with
+`BASE_PATH=/<repo>/` and publishes `dist/` to the `gh-pages` branch. In the repository settings,
+Pages must serve from the `gh-pages` branch (root).
+
+**Netlify** also works: `netlify.toml` builds with `npm run build` and publishes `dist/` at the site root.
 
 ## Project layout
 

@@ -23,7 +23,8 @@ export function loadPumpkinModel(variant) {
 }
 
 async function load(variant) {
-  const gltf = await loader.loadAsync(variant.model);
+  // Relative to the deploy base, so the game works from a sub-path (GitHub Pages).
+  const gltf = await loader.loadAsync(import.meta.env.BASE_URL + variant.model);
   gltf.scene.rotation.y = variant.rotationY ?? 0;
   gltf.scene.updateMatrixWorld(true);
 

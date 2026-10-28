@@ -66,5 +66,5 @@ a 60k-triangle model). `optimize` also applies meshopt compression by default, w
 optionally separate the stem into its own object named `stem`, resize the texture to 512 px, and
 export as glTF Binary (`.glb`) with +Y up.
 
-Then point the variant at the file in `src/pumpkins/variants.js`, run the game and watch the console
+Then point the variant at the file in `src/pumpkins/variants.js` (`model: "pumpkins/jack.glb"`, relative to `public/`), run the game and watch the console
 for the triangle warning.
