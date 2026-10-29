@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { COMBO, font, FONTS, GAME, TEXT, TOOLS } from "../config.js";
+import { COMBO, font, FONT, GAME, TEXT, TOOLS } from "../config.js";
 import { FracturePool } from "../core/FracturePool.js";
 import { Physics } from "../core/Physics.js";
 import { live, Quality } from "../core/Quality.js";
@@ -794,10 +794,9 @@ function shuffle(list) {
 
 async function loadFonts() {
   await previewTitleFont();
-  const fonts = ["title", "numbers", "body"].map((name) => font(name, 32));
   try {
     await Promise.race([
-      Promise.all(fonts.map((f) => document.fonts.load(f))),
+      document.fonts.load(font(32)),
       new Promise((resolve) => setTimeout(resolve, 3000)),
     ]);
   } catch {
@@ -812,7 +811,7 @@ async function loadFonts() {
  */
 async function previewTitleFont() {
   const params = new URLSearchParams(location.search);
-  // ?gfont=<Google Fonts family> previews a Google font the same way.
+  // ?gfont=<Google Fonts family> previews a Google font the same way (dev only).
   const google = import.meta.env.DEV && params.get("gfont");
   if (google) {
     const link = Object.assign(document.createElement("link"), {
@@ -822,7 +821,7 @@ async function previewTitleFont() {
     document.head.append(link);
     await new Promise((resolve) => (link.onload = link.onerror = resolve));
     await document.fonts.load(`400 32px "${google}"`);
-    FONTS.title = { family: `"${google}", serif`, weight: 400 };
+    FONT.family = `"${google}", serif`;
     return;
   }
   const file = import.meta.env.DEV && params.get("font");
@@ -830,7 +829,7 @@ async function previewTitleFont() {
   try {
     const face = new FontFace("Preview Title", `url(${import.meta.env.BASE_URL}fonts/${file})`);
     document.fonts.add(await face.load());
-    FONTS.title = { family: '"Preview Title", serif', weight: 400 };
+    FONT.family = '"Preview Title", serif';
   } catch (error) {
     console.warn(`[fonts] could not load fonts/${file}`, error);
   }
