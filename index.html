@@ -23,8 +23,40 @@
       href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@700&family=Jacquard+24&family=Pixelify+Sans:wght@400;700&display=block"
       rel="stylesheet"
     />
+    <style>
+      /* Shown by the HTML itself, before any JavaScript, WebGL or physics has
+         loaded; src/core/loader.js reports progress and removes it. */
+      html, body { background: #07030c; margin: 0; }
+      #loader {
+        position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 22px; background: #07030c;
+        font-family: "Pixelify Sans", monospace; color: #b79cff; transition: opacity 0.8s ease;
+      }
+      #loader.done { opacity: 0; pointer-events: none; }
+      #loader img {
+        width: 96px; height: 96px; image-rendering: pixelated;
+        filter: drop-shadow(0 0 18px rgba(255, 120, 30, 0.55));
+        animation: flicker 2.2s infinite steps(1);
+      }
+      #loader .bar { width: min(260px, 60vw); height: 8px; background: #1c0a12; border: 2px solid #3b1650; }
+      #loader .fill {
+        height: 100%; width: 0; background: linear-gradient(90deg, #ff3a0a, #ffb347);
+        box-shadow: 0 0 12px #ff5a14; transition: width 0.35s ease;
+      }
+      #loader .label { font-size: 14px; letter-spacing: 0.08em; text-transform: lowercase; min-height: 1em; }
+      @keyframes flicker {
+        0%, 100% { opacity: 1; } 12% { opacity: 0.82; } 14% { opacity: 1; } 47% { opacity: 0.9; }
+        49% { opacity: 1; } 71% { opacity: 0.76; } 73% { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) { #loader img { animation: none; } }
+    </style>
   </head>
   <body>
+    <div id="loader" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100">
+      <img src="/favicon.png" alt="" />
+      <div class="bar"><div class="fill"></div></div>
+      <div class="label">lighting the candles...</div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

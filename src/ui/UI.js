@@ -33,7 +33,6 @@ export class UI {
     this.title2 = add(new UIText({ text: TEXT.title[1], font: "title", size: 80, wobble: 0.012 }));
     this.tagline = add(new UIText({ text: TEXT.tagline, size: 22, ...VIOLET }));
     this.begin = add(new UIText({ text: TEXT.begin, font: "title", size: 66, wobble: 0.03 }));
-    this.loading = add(new UIText({ text: TEXT.loading, font: "title", size: 54, width: 700, wobble: 0.03 }));
     this.coverTitle = add(new UIText({ text: TEXT.title.join(" "), font: "title", size: 120, width: 1300, colors: ["#ffb347", "#ff6a10"], glow: "#7a1a00" }));
     this.qualityLabel = add(new UIText({ text: "", size: 16, anchor: "left", width: 260, ...VIOLET }));
     this.soundLabel = add(new UIText({ text: "", size: 16, anchor: "right", width: 200, ...VIOLET }));
@@ -133,7 +132,6 @@ export class UI {
     place(this.title2, 0, top - 230 * k);
     place(this.tagline, 0, top - 290 * k);
     place(this.begin, 0, bottom + 150 * k);
-    place(this.loading, 0, 0);
     place(this.coverTitle, 0, -0.02 * h);
     // Top-left: only shown on title and results, when the HUD is hidden.
     place(this.qualityLabel, left + margin * 0.6, top - Math.max(16, 20 * k), w * 0.5);
@@ -213,14 +211,6 @@ export class UI {
     this.coverTitle.u.intensity.value = 2;
     this.reticle.visible = false;
     this.pointer.touch = true;
-  }
-
-  showLoading() {
-    this.loading.show({ duration: 1 });
-  }
-
-  hideLoading() {
-    this.loading.hide({ duration: 0.5 });
   }
 
   setSoundLabel(on) {

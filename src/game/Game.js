@@ -13,6 +13,7 @@ import { loadPumpkinModel } from "../pumpkins/models.js";
 import { UI } from "../ui/UI.js";
 import { Cabin, MOON_POSITION } from "../world/Cabin.js";
 import { Destruction } from "./Destruction.js";
+import { finish, progress } from "../core/loader.js";
 import { Sound } from "../audio/Sound.js";
 import { fetchTop, lastName, leaderboardEnabled, rememberName, submitScore } from "./leaderboard.js";
 
@@ -53,9 +54,19 @@ export class Game {
     // Downloads (physics wasm, pumpkin models) start right away and overlap
     // with font loading and renderer setup.
     this.physics = new Physics();
-    const physicsReady = this.physics.init();
-    const modelsReady = Promise.all(VARIANTS.map(loadPumpkinModel));
+    progress(0.05, "lighting the candles...");
+    const physicsReady = this.physics.init().then(() => progress(0.35));
+    let modelsLoaded = 0;
+    const modelsReady = Promise.all(
+      VARIANTS.map((v) =>
+        loadPumpkinModel(v).then((m) => {
+          progress(0.35 + (++modelsLoaded / VARIANTS.length) * 0.4, "carving the pumpkins...");
+          return m;
+        }),
+      ),
+    );
     await loadFonts();
+    progress(0.15);
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
@@ -68,6 +79,7 @@ export class Game {
       uiCamera: this.ui.camera,
     });
     await this.renderer.renderer.init();
+    progress(0.25);
 
     this.quality = new Quality(this.renderer.renderer);
     this.renderer.setQuality(this.quality.preset);
@@ -93,7 +105,6 @@ export class Game {
     this.ui.setQualityLabel(this.quality.label);
     this.sound = new Sound();
     this.ui.setSoundLabel(this.sound.enabled);
-    this.ui.showLoading();
     this.renderer.renderer.setAnimationLoop((t) => this.frame(t));
 
     const [, models] = await Promise.all([physicsReady, modelsReady]);
@@ -108,10 +119,12 @@ export class Game {
       pool: this.pool,
       debris: this.debris,
     });
+    progress(0.85, "sharpening the blades...");
     this.warmUpMaterials(models);
     this.quality.onChange((preset) => this.onQualityChange(preset));
 
-    this.ui.hideLoading();
+    // Let the first frames compile shaders behind the loader, then reveal.
+    tweens.after(0.6, finish);
     if (new URLSearchParams(location.search).has("cover")) return this.startCover();
     this.state = "title";
     this.spawnPumpkin();
