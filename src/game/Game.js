@@ -312,8 +312,6 @@ export class Game {
   onQualityChange(preset) {
     this.renderer.setQuality(preset);
     this.ui.setQualityLabel(this.quality.label);
-    this.sound = new Sound();
-    this.ui.setSoundLabel(this.sound.enabled);
     if (this.state === "playing" || this.state === "intro") this.pendingQuality = preset;
     else this.cabin.setQuality(preset);
   }
