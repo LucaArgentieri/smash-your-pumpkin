@@ -36,6 +36,7 @@ export class UI {
     this.loading = add(new UIText({ text: TEXT.loading, font: "title", size: 54, width: 700, wobble: 0.03 }));
     this.coverTitle = add(new UIText({ text: TEXT.title.join(" "), font: "title", size: 120, width: 1300, colors: ["#ffb347", "#ff6a10"], glow: "#7a1a00" }));
     this.qualityLabel = add(new UIText({ text: "", size: 16, anchor: "left", width: 260, ...VIOLET }));
+    this.soundLabel = add(new UIText({ text: "", size: 16, anchor: "right", width: 200, ...VIOLET }));
 
     // HUD.
     this.timer = add(new UIText({ text: "60", font: "numbers", size: 104, width: 220 }));
@@ -136,6 +137,7 @@ export class UI {
     place(this.coverTitle, 0, -0.02 * h);
     // Top-left: only shown on title and results, when the HUD is hidden.
     place(this.qualityLabel, left + margin * 0.6, top - Math.max(16, 20 * k), w * 0.5);
+    place(this.soundLabel, right - margin * 0.6, top - Math.max(16, 20 * k), w * 0.4);
 
     place(this.timer, 0, top - 70 * k);
     place(this.scoreLabel, left + margin, top - 34 * k);
@@ -202,6 +204,7 @@ export class UI {
     this.tagline.show({ duration: 1, delay: 1.2 });
     this.begin.show({ duration: 0.9, delay: 1.6 });
     this.qualityLabel.show({ duration: 0.6, delay: 2.2 });
+    this.soundLabel.show({ duration: 0.6, delay: 2.2 });
   }
 
   /** Key-art mode: just the title, fully shown. */
@@ -220,12 +223,16 @@ export class UI {
     this.loading.hide({ duration: 0.5 });
   }
 
+  setSoundLabel(on) {
+    this.soundLabel.setText(`${TEXT.sound}: ${on ? "ON" : "OFF"}  [M]`);
+  }
+
   setQualityLabel(text) {
     this.qualityLabel.setText(`${TEXT.quality}: ${text}  [Q]`);
   }
 
   hideTitle() {
-    [this.title1, this.title2, this.tagline, this.begin, this.qualityLabel].forEach((el, i) =>
+    [this.title1, this.title2, this.tagline, this.begin, this.qualityLabel, this.soundLabel].forEach((el, i) =>
       el.hide({ duration: 0.5, delay: i * 0.05 }),
     );
   }
@@ -307,6 +314,7 @@ export class UI {
     if (askName) this.nameEntry.show(askName, 3.4);
     else this.again.show({ duration: 0.9, delay: 3.4 });
     this.qualityLabel.show({ duration: 0.6, delay: 3.6 });
+    this.soundLabel.show({ duration: 0.6, delay: 3.6 });
   }
 
   /** Swaps the results page for the leaderboard, with AGAIN under it. */
@@ -320,7 +328,10 @@ export class UI {
     [this.resultsTitle, ...this.rows.flatMap((r) => [r.label, r.value]), this.finalScore, this.bestLine, this.recordLine, this.again].forEach(
       (el, i) => el.hide({ duration: 0.5, delay: i * 0.03 }),
     );
-    if (!keepQuality) this.qualityLabel.hide({ duration: 0.5 });
+    if (!keepQuality) {
+      this.qualityLabel.hide({ duration: 0.5 });
+      this.soundLabel.hide({ duration: 0.5 });
+    }
     this.nameEntry.hide();
     this.board.hide();
   }
@@ -446,7 +457,7 @@ export class UI {
         tweens.to(slot.u.hover, "value", over ? 0.5 : 0, 0.15);
       }
     }
-    for (const button of [this.begin, this.again, this.qualityLabel]) {
+    for (const button of [this.begin, this.again, this.qualityLabel, this.soundLabel]) {
       const over = !touch && button.contains(x, y, 20);
       if (over !== button.hovered) {
         button.hovered = over;
@@ -463,6 +474,7 @@ export class UI {
     if (slot !== -1) return { type: "tool", index: slot };
     if (this.begin.contains(x, y, 20)) return { type: "begin" };
     if (this.qualityLabel.contains(x, y, 12)) return { type: "quality" };
+    if (this.soundLabel.contains(x, y, 12)) return { type: "sound" };
     if (this.again.contains(x, y, 20)) return { type: "again" };
     return null;
   }
