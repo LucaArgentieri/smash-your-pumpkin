@@ -14,8 +14,8 @@ export class NameEntry {
     this.letters = [0, 1, 2].map(() => add(new UIText({ text: "A", font: "body", size: 84, width: 100 })));
     this.ups = [0, 1, 2].map(() => add(new UIText({ text: "▲", size: 30, width: 80, ...VIOLET })));
     this.downs = [0, 1, 2].map(() => add(new UIText({ text: "▼", size: 30, width: 80, ...VIOLET })));
-    this.ok = add(new UIText({ text: TEXT.ok, font: "title", size: 60, wobble: 0.03 }));
-    this.skip = add(new UIText({ text: TEXT.skip, size: 18, ...VIOLET }));
+    this.ok = add(new UIText({ text: TEXT.ok, font: "title", size: 56, wobble: 0.03 }));
+    this.skip = add(new UIText({ text: TEXT.skip, size: 26, ...VIOLET }));
     this.status = add(new UIText({ text: "", size: 20, width: 600, ...VIOLET }));
     this.name = ["A", "A", "A"];
     this.active = 0;
@@ -26,13 +26,17 @@ export class NameEntry {
   }
 
   layout(place, { k, bottom }) {
-    const y = bottom + 175 * k;
+    // Letters with their arrows, then OK with SKIP beside it. Spacing
+    // is capped so on big screens the block stays under the results text.
+    k = Math.min(k, 0.85);
+    const y = bottom + 232 * k;
     this.letters.forEach((el, i) => place(el, (i - 1) * 96 * k, y));
     this.ups.forEach((el, i) => place(el, (i - 1) * 96 * k, y + 68 * k));
     this.downs.forEach((el, i) => place(el, (i - 1) * 96 * k, y - 64 * k));
-    place(this.ok, 0, bottom + 66 * k);
-    place(this.skip, 0, bottom + 24 * k);
-    place(this.status, 0, bottom + 66 * k);
+    // OK centred under the letters, SKIP off to its side on the same line.
+    place(this.ok, 0, bottom + 92 * k);
+    place(this.skip, 190 * k, bottom + 92 * k);
+    place(this.status, 0, bottom + 92 * k);
   }
 
   get value() {
@@ -99,8 +103,8 @@ export class NameEntry {
       if (this.downs[i].contains(x, y, 14)) return { type: "nameDown", index: i };
       if (this.letters[i].contains(x, y, 4)) return { type: "nameLetter", index: i };
     }
-    if (this.ok.contains(x, y, 18)) return { type: "nameOk" };
-    if (this.skip.contains(x, y, 14)) return { type: "nameSkip" };
+    if (this.ok.contains(x, y, 10)) return { type: "nameOk" };
+    if (this.skip.contains(x, y, 16)) return { type: "nameSkip" };
     return null;
   }
 }
