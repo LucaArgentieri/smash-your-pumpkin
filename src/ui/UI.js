@@ -90,12 +90,16 @@ export class UI {
     this.selected = 0;
     this.playing = false;
 
-    this.popups = Array.from({ length: 10 }, () => {
-      const p = add(new UIText({ text: "", font: "numbers", size: 44, width: 280 }));
-      p.renderOrder = 50;
-      return p;
-    });
-    this.popupCursor = 0;
+    // Two popup pools: "+120" in the number face, words ("DUST! +40",
+    // "SWITCH +2") in the title face.
+    const popupPool = (face, width) =>
+      Array.from({ length: 8 }, () => {
+        const p = add(new UIText({ text: "", font: face, size: 44, width }));
+        p.renderOrder = 50;
+        return p;
+      });
+    this.popups = { numbers: popupPool("numbers", 280), words: popupPool("title", 380) };
+    this.popupCursor = { numbers: 0, words: 0 };
 
     this.reticle = add(createReticle());
     this.reticle.u.reveal.value = 1;
@@ -425,8 +429,10 @@ export class UI {
 
   /** Floating "+120" burnt into the air at a world position. */
   popup(text, worldPoint, camera, { blood = false } = {}) {
-    const p = this.popups[this.popupCursor];
-    this.popupCursor = (this.popupCursor + 1) % this.popups.length;
+    const kind = /[a-z]/i.test(text) ? "words" : "numbers";
+    const pool = this.popups[kind];
+    const p = pool[this.popupCursor[kind]];
+    this.popupCursor[kind] = (this.popupCursor[kind] + 1) % pool.length;
     const v = worldPoint.clone().project(camera);
     const x = THREE.MathUtils.clamp((v.x * this.w) / 2, -this.w / 2 + 80, this.w / 2 - 80);
     const y = (v.y * this.h) / 2 + 30 * this.k;
