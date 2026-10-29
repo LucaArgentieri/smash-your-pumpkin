@@ -136,9 +136,16 @@ export class Board {
     place(this.status, 0, top - 300 * k);
   }
 
+  loading() {
+    this.title.show({ duration: 1 });
+    this.status.setText(TEXT.boardLoading);
+    this.status.show({ duration: 0.6, delay: 0.3 });
+  }
+
   /** `you`: { name, score, rank } for the run just played (rank may be null). */
   show(entries, you, delay = 0) {
     this.title.show({ duration: 1, delay });
+    this.status.hide({ duration: 0.3 });
     if (!entries) {
       this.status.setText(TEXT.boardOffline);
       this.status.show({ duration: 0.6, delay: delay + 0.4 });

@@ -1,10 +1,13 @@
-// Renders the key art and icons:
-// - public/og.png (README cover + social cards): the game itself in its
-//   "?cover" key-art mode, framed like the Inscryption cover;
-// - public/favicon.png and public/apple-touch-icon.png from scripts/icons.html.
+// Renders the key art and icons from the game itself, in its "?cover" mode
+// (a dark room, the carved face as the only light, framed like the
+// Inscryption cover):
+// - public/og.png: README cover + social cards, 1200x630 with the title;
+// - public/favicon.png (32) and public/apple-touch-icon.png (180): the same
+//   face, square and without the title.
 //
 //   node scripts/render-cover.mjs        (needs Playwright with Chromium)
 
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -24,19 +27,39 @@ const browser = await chromium.launch({
   args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
 
-const icons = await browser.newPage({ deviceScaleFactor: 1 });
-await icons.goto(`${base}scripts/icons.html`);
-await icons.waitForFunction(() => window.ready === true);
-for (const [id, file] of [["favicon", "favicon.png"], ["touch", "apple-touch-icon.png"]]) {
-  await icons.locator(`#${id}`).screenshot({ path: join(root, "public", file) });
-  console.log(`public/${file}`);
+async function capture(query, width, height) {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+  await page.goto(`${base}?${query}`);
+  await page.waitForFunction(() => window.coverReady === true, null, { timeout: 300000 });
+  const png = await page.screenshot();
+  await page.close();
+  return png;
 }
 
-const game = await browser.newPage({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 });
-await game.goto(`${base}?cover`);
-await game.waitForFunction(() => window.coverReady === true, null, { timeout: 300000 });
-await game.screenshot({ path: join(root, "public", "og.png") });
+await writeFile(join(root, "public", "og.png"), await capture("cover", 1200, 630));
 console.log("public/og.png");
+
+// Downscale the square render with smooth filtering, in a blank page's canvas.
+const square = await capture("cover&icon", 360, 360);
+const scaler = await browser.newPage();
+for (const [size, file] of [[180, "apple-touch-icon.png"], [32, "favicon.png"]]) {
+  const dataUrl = await scaler.evaluate(
+    async ([src, size]) => {
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, size, size);
+      return canvas.toDataURL("image/png");
+    },
+    [`data:image/png;base64,${square.toString("base64")}`, size],
+  );
+  await writeFile(join(root, "public", file), Buffer.from(dataUrl.split(",")[1], "base64"));
+  console.log(`public/${file}`);
+}
 
 await browser.close();
 await server.close();
