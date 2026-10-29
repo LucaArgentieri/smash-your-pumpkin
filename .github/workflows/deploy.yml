@@ -25,6 +25,9 @@ jobs:
       - run: bun run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+          # Public anon key and URL for the leaderboard (repository variables).
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
 
       # Publishes dist/ as the gh-pages branch (a single fresh commit each time).
       - name: Publish to gh-pages

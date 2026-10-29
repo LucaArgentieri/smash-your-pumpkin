@@ -8,11 +8,12 @@ import { ease, tweens } from "../core/Tween.js";
 import { Debris } from "../fx/Debris.js";
 import { Pumpkin } from "../pumpkins/Pumpkin.js";
 import { VARIANTS } from "../pumpkins/variants.js";
-import { getPumpkinMaterials } from "../pumpkins/materials.js";
+import { faceGlowStrength, getPumpkinMaterials } from "../pumpkins/materials.js";
 import { loadPumpkinModel } from "../pumpkins/models.js";
 import { UI } from "../ui/UI.js";
 import { Cabin, MOON_POSITION } from "../world/Cabin.js";
 import { Destruction } from "./Destruction.js";
+import { fetchTop, lastName, leaderboardEnabled, rememberName, submitScore } from "./leaderboard.js";
 
 const PUMPKIN_SPOT = new THREE.Vector3(0, 0, 0.15);
 const LOOK_AT = new THREE.Vector3(0, 0.85, 0);
@@ -30,6 +31,12 @@ const SHOWCASE_POSITION = PUMPKIN_SPOT.clone()
   .addScaledVector(ACROSS_MOON, -2.4)
   .add(new THREE.Vector3(0, 1.6, 0));
 const SHOWCASE_LOOK = PUMPKIN_SPOT.clone().addScaledVector(TO_MOON, 9).addScaledVector(ACROSS_MOON, 2);
+
+// Key-art shot, a narrow lens framed like the Inscryption cover: eyes in the
+// top third, the top of the pumpkin cropped, the title across the nose.
+const COVER_POSITION = new THREE.Vector3(0, 1.0, 3.6);
+const COVER_LOOK = new THREE.Vector3(0, 0.6, 0.15);
+const COVER_FOV = 30;
 
 const BEST_KEY = "smash-your-pumpkin:best";
 const COMBO_KEY = "smash-your-pumpkin:combo-record";
@@ -102,10 +109,35 @@ export class Game {
     this.quality.onChange((preset) => this.onQualityChange(preset));
 
     this.ui.hideLoading();
+    if (new URLSearchParams(location.search).has("cover")) return this.startCover();
     this.state = "title";
     this.spawnPumpkin();
     this.ui.showTitle();
     this.dim(1);
+  }
+
+  /**
+   * Key-art mode (?cover), rendered by scripts/render-cover.mjs: a carved
+   * pumpkin looming over the camera like the Inscryption cover, with only
+   * the title on top. Sets `window.coverReady` once the pumpkin has settled.
+   */
+  async startCover() {
+    this.state = "cover";
+    this.cameraMode = "cover";
+    this.camera.fov = COVER_FOV;
+    this.camera.updateProjectionMatrix();
+    this.cameraPosition.copy(COVER_POSITION);
+    this.cameraLook.copy(COVER_LOOK);
+    this.quality.set("high");
+    this.cabin.setQuality(this.quality.preset);
+    this.cabin.setCoverLighting();
+    // Bright enough to bloom and spill onto the skin, low enough to stay orange.
+    faceGlowStrength.value = 1.6;
+    this.renderer.uniforms.vignette.value = 1.5;
+    await this.spawnPumpkin(VARIANTS.find((v) => v.name === "Jack"));
+    this.pumpkin.mesh.rotation.y = 0;
+    this.ui.showCover();
+    tweens.after(2.5, () => (window.coverReady = true));
   }
 
   resetStats() {
@@ -184,6 +216,7 @@ export class Game {
     if (action?.type === "quality") return this.quality.cycle();
     if (action?.type === "begin" && this.state === "title") return this.beginRound();
     if (action?.type === "again" && this.state === "results") return this.beginRound();
+    if (this.state === "name" && action?.type.startsWith("name")) return this.onNameAction(action);
     if (this.state === "playing") {
       // Holding the button keeps swinging at the tool's own pace.
       this.pointerHeld = true;
@@ -192,6 +225,7 @@ export class Game {
   }
 
   onKey(e) {
+    if (this.state === "name") return this.onNameKey(e);
     const index = ["Digit1", "Digit2", "Digit3"].indexOf(e.code);
     if (index !== -1) this.selectTool(index);
     if (e.code === "KeyQ" && this.state !== "loading") this.quality.cycle();
@@ -264,7 +298,11 @@ export class Game {
     const previousRecord = readNumber(COMBO_KEY);
     const isComboRecord = this.bestCombo > previousRecord;
     if (isComboRecord) writeNumber(COMBO_KEY, this.bestCombo);
+    // Online: ask for a name (only for runs that scored) before the board.
+    const askName = leaderboardEnabled && this.score > 0;
+    if (leaderboardEnabled) this.boardRequest = fetchTop().catch(() => null);
     this.ui.showResults({
+      askName: askName ? lastName() : null,
       score: this.score,
       pumpkins: this.pumpkinsSmashed,
       shards: this.shards,
@@ -274,6 +312,53 @@ export class Game {
       comboRecord: Math.max(previousRecord, this.bestCombo),
       isComboRecord: isComboRecord && this.bestCombo > 1,
     });
+    this.state = askName ? "name" : "results";
+  }
+
+  // --- Leaderboard --------------------------------------------------------------
+
+  onNameAction(action) {
+    const entry = this.ui.nameEntry;
+    if (action.type === "nameUp") entry.cycle(action.index, 1);
+    if (action.type === "nameDown") entry.cycle(action.index, -1);
+    if (action.type === "nameLetter") entry.select(action.index);
+    if (action.type === "nameOk") this.submitName();
+    if (action.type === "nameSkip") this.showBoard(null);
+  }
+
+  onNameKey(e) {
+    const entry = this.ui.nameEntry;
+    if (/^Key[A-Z]$|^Digit[0-9]$/.test(e.code)) entry.type(e.code.at(-1));
+    else if (e.code === "Backspace") entry.backspace();
+    else if (e.code === "ArrowUp") entry.cycle(entry.active, 1);
+    else if (e.code === "ArrowDown") entry.cycle(entry.active, -1);
+    else if (e.code === "ArrowLeft") entry.select(entry.active - 1);
+    else if (e.code === "ArrowRight") entry.select(entry.active + 1);
+    else if (e.code === "Enter") this.submitName();
+    else if (e.code === "Escape") this.showBoard(null);
+  }
+
+  async submitName() {
+    const name = this.ui.nameEntry.value;
+    rememberName(name);
+    this.state = "saving";
+    this.ui.nameEntry.setStatus(TEXT.saving);
+    let rank = null;
+    try {
+      rank = await submitScore({ name, score: this.score, combo: this.bestCombo, pumpkins: this.pumpkinsSmashed });
+      // The board fetched before submitting is stale now.
+      this.boardRequest = fetchTop().catch(() => null);
+    } catch (error) {
+      console.warn("[leaderboard] submit failed", error);
+    }
+    this.showBoard({ name, score: this.score, rank });
+  }
+
+  /** Leaderboard page; `you` is the run just submitted (null when skipped). */
+  async showBoard(you) {
+    this.state = "saving";
+    const entries = await (this.boardRequest ?? Promise.resolve(null));
+    this.ui.showBoard(entries, you);
     this.state = "results";
   }
 
@@ -293,8 +378,7 @@ export class Game {
     return this.lastVariant;
   }
 
-  async spawnPumpkin() {
-    const variant = this.nextVariant();
+  async spawnPumpkin(variant = this.nextVariant()) {
     const pumpkin = await Pumpkin.create(variant, {
       scene: this.scene,
       physics: this.physics,
@@ -470,7 +554,7 @@ export class Game {
     // Keep the table's width in view on portrait screens.
     const minHorizontalFov = THREE.MathUtils.degToRad(52);
     const vertical = 2 * Math.atan(Math.tan(minHorizontalFov / 2) / aspect);
-    this.camera.fov = Math.max(48, THREE.MathUtils.radToDeg(vertical));
+    this.camera.fov = this.cameraMode === "cover" ? COVER_FOV : Math.max(48, THREE.MathUtils.radToDeg(vertical));
     this.camera.updateProjectionMatrix();
     this.renderer.resize();
     this.ui.layout(w, h);
@@ -519,7 +603,10 @@ export class Game {
     const target = _cameraTarget;
     const look = _lookTarget;
     let roll = 0;
-    if (this.cameraMode === "showcase") {
+    if (this.cameraMode === "cover") {
+      target.copy(COVER_POSITION);
+      look.copy(COVER_LOOK);
+    } else if (this.cameraMode === "showcase") {
       // Slow, layered sine drift and roll: the arcade attract-mode float.
       const t = this.elapsed;
       const drift = this.reducedMotion ? 0.3 : 1;

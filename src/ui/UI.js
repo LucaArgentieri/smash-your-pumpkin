@@ -3,13 +3,14 @@ import { TEXT, TOOLS } from "../config.js";
 import { tweens, ease } from "../core/Tween.js";
 import { UIText } from "./elements.js";
 import { createReticle, createWeaponCursor, createWeaponSlot } from "./cards.js";
+import { Board, NameEntry } from "./leaderboard.js";
 
 const VIOLET = { colors: ["#e3d6ff", "#9b7bff"], glow: "#4a1f8a", intensity: 1.25 };
 const BLOOD = { colors: ["#ffb08a", "#ff2a10"], glow: "#ff1a00" };
 
 // Combo "heat" (0..1) drives the Balatro-style escalation: the higher the
 // combo, the bigger, brighter and shakier the numbers get.
-const HEAT_COMBO = 50;
+const HEAT_COMBO = 40;
 
 /**
  * Every bit of interface, rendered by an orthographic camera into its own
@@ -20,7 +21,9 @@ export class UI {
   constructor() {
     this.scene = new THREE.Scene();
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -10, 10);
-    this.pointer = { x: 0, y: 0, touch: false };
+    // Touch-first devices never show a pointer-following cursor, not even
+    // before the first tap.
+    this.pointer = { x: 0, y: 0, touch: matchMedia("(hover: none)").matches };
     this.k = 1;
 
     const add = (el) => (this.scene.add(el), el);
@@ -31,6 +34,7 @@ export class UI {
     this.tagline = add(new UIText({ text: TEXT.tagline, size: 22, ...VIOLET }));
     this.begin = add(new UIText({ text: TEXT.begin, font: "title", size: 66, wobble: 0.03 }));
     this.loading = add(new UIText({ text: TEXT.loading, font: "title", size: 54, width: 700, wobble: 0.03 }));
+    this.coverTitle = add(new UIText({ text: TEXT.title.join(" "), font: "title", size: 120, width: 1300, colors: ["#ffb347", "#ff6a10"], glow: "#7a1a00" }));
     this.qualityLabel = add(new UIText({ text: "", size: 16, anchor: "left", width: 260, ...VIOLET }));
 
     // HUD.
@@ -40,14 +44,16 @@ export class UI {
     this.pumpkinsLabel = add(new UIText({ text: TEXT.pumpkins, size: 20, anchor: "right", width: 200, ...VIOLET }));
     this.pumpkinsValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "right", width: 160 }));
     // Combo, split like Balatro's chips x mult: count, multiplier and rank.
-    this.comboCount = add(new UIText({ text: "x2", font: "numbers", size: 64, anchor: "right", width: 300 }));
-    this.comboMult = add(new UIText({ text: "1.05x", font: "numbers", size: 56, anchor: "left", width: 320, ...BLOOD }));
-    this.comboRank = add(new UIText({ text: "", font: "title", size: 38, width: 560, wobble: 0.03 }));
-    this.cashOut = add(new UIText({ text: "", font: "title", size: 46, width: 760, wobble: 0.03 }));
-    this.comboCount.heatGain = 0.8;
-    this.comboMult.heatGain = 1;
-    this.comboRank.heatGain = 0.5;
-    for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) el.sway = 0.04;
+    this.comboCount = add(new UIText({ text: "x2", font: "numbers", size: 64, anchor: "top-right", width: 190 }));
+    this.comboMult = add(new UIText({ text: "1.05x", font: "numbers", size: 56, anchor: "top-left", width: 230, ...BLOOD }));
+    this.comboRank = add(new UIText({ text: "", font: "title", size: 38, anchor: "top", width: 560, wobble: 0.03 }));
+    this.cashOut = add(new UIText({ text: "", font: "title", size: 46, anchor: "top", width: 760, wobble: 0.03 }));
+    // Balatro / Vampire Survivors escalation: at full heat the count more than
+    // doubles and the multiplier nearly triples.
+    this.comboCount.heatGain = 1.5;
+    this.comboMult.heatGain = 1.8;
+    this.comboRank.heatGain = 0.8;
+    for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) el.sway = 0.06;
     this.comboParts = [this.comboCount, this.comboMult, this.comboRank];
     this.heat = 0;
     this.displayScore = 0;
@@ -66,6 +72,10 @@ export class UI {
     this.bestLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" }));
     this.recordLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" }));
     this.again = add(new UIText({ text: TEXT.again, font: "title", size: 76, wobble: 0.03 }));
+
+    // Leaderboard: name entry on the results page, then the board.
+    this.nameEntry = new NameEntry(add);
+    this.board = new Board(add);
 
     // Weapon slots (only during a round) and the weapon that follows the
     // pointer. No explanations: players learn each weapon by using it.
@@ -123,18 +133,27 @@ export class UI {
     place(this.tagline, 0, top - 290 * k);
     place(this.begin, 0, bottom + 150 * k);
     place(this.loading, 0, 0);
+    place(this.coverTitle, 0, -0.02 * h);
     // Top-left: only shown on title and results, when the HUD is hidden.
     place(this.qualityLabel, left + margin * 0.6, top - Math.max(16, 20 * k), w * 0.5);
 
     place(this.timer, 0, top - 70 * k);
     place(this.scoreLabel, left + margin, top - 34 * k);
-    place(this.scoreValue, left + margin, top - 80 * k, w / 2 - margin - 60 * k);
+    place(this.scoreValue, left + margin, top - 68 * k, w / 2 - margin - 60 * k);
     place(this.pumpkinsLabel, right - margin, top - 34 * k);
-    place(this.pumpkinsValue, right - margin, top - 80 * k, w / 2 - margin - 60 * k);
-    place(this.comboCount, -10 * k, top - 165 * k, w / 2 - margin);
-    place(this.comboMult, 10 * k, top - 165 * k, w / 2 - margin);
-    place(this.comboRank, 0, top - 250 * k);
-    place(this.cashOut, 0, top - 330 * k);
+    place(this.pumpkinsValue, right - margin, top - 68 * k, w / 2 - margin - 60 * k);
+    // The combo hangs from a fixed top edge and grows downwards; rank and
+    // cash-out follow its bottom edge every frame (see updateJuice). On narrow
+    // screens it starts smaller so it has room to grow.
+    const comboBase = w < 700 ? 0.65 : 1;
+    place(this.comboCount, -8 * k, top - 135 * k, w / 2 - 6);
+    place(this.comboMult, 8 * k, top - 135 * k, w / 2 - 6);
+    place(this.comboRank, 0, top - 210 * k);
+    place(this.cashOut, 0, top - 260 * k);
+    for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) {
+      el.layoutScale = Math.min(el.maxScale, k * comboBase);
+      this.heatScale(el);
+    }
     place(this.big, 0, 40 * k);
 
     // Results hide the weapon slots, so they can use the whole height.
@@ -149,6 +168,8 @@ export class UI {
     place(this.bestLine, 0, top - 420 * k);
     place(this.recordLine, 0, top - 452 * k);
     place(this.again, 0, bottom + 120 * k);
+    this.nameEntry.layout(place, { k, bottom });
+    this.board.layout(place, { k, top, fitWidth });
 
     const spacing = 100 * k;
     this.slots.forEach((slot, i) => place(slot, (i - 1) * spacing, bottom + 70 * k));
@@ -181,6 +202,14 @@ export class UI {
     this.tagline.show({ duration: 1, delay: 1.2 });
     this.begin.show({ duration: 0.9, delay: 1.6 });
     this.qualityLabel.show({ duration: 0.6, delay: 2.2 });
+  }
+
+  /** Key-art mode: just the title, fully shown. */
+  showCover() {
+    this.coverTitle.u.reveal.value = 1;
+    this.coverTitle.u.intensity.value = 2;
+    this.reticle.visible = false;
+    this.pointer.touch = true;
   }
 
   showLoading() {
@@ -251,7 +280,8 @@ export class UI {
     });
   }
 
-  showResults({ score, pumpkins, shards, bestCombo, best, isBest, comboRecord, isComboRecord }) {
+  /** `askName`: show the name entry (leaderboard online) instead of AGAIN. */
+  showResults({ score, pumpkins, shards, bestCombo, best, isBest, comboRecord, isComboRecord, askName = null }) {
     this.resultsTitle.show({ duration: 1.4, delay: 0.1 });
     const values = [pumpkins, shards, `x${bestCombo}`];
     this.rows.forEach((row, i) => {
@@ -274,14 +304,25 @@ export class UI {
     this.bestLine.show({ duration: 0.8, delay: 3.1 });
     this.recordLine.setText(isComboRecord ? `~ ${TEXT.newComboRecord} x${comboRecord} ~` : `${TEXT.comboRecord}  x${comboRecord}`);
     this.recordLine.show({ duration: 0.8, delay: 3.25 });
-    this.again.show({ duration: 0.9, delay: 3.4 });
+    if (askName) this.nameEntry.show(askName, 3.4);
+    else this.again.show({ duration: 0.9, delay: 3.4 });
     this.qualityLabel.show({ duration: 0.6, delay: 3.6 });
   }
 
-  hideResults() {
-    [this.resultsTitle, ...this.rows.flatMap((r) => [r.label, r.value]), this.finalScore, this.bestLine, this.recordLine, this.again, this.qualityLabel].forEach(
+  /** Swaps the results page for the leaderboard, with AGAIN under it. */
+  showBoard(entries, you) {
+    this.hideResults({ keepQuality: true });
+    this.board.show(entries, you, 0.4);
+    this.again.show({ duration: 0.9, delay: 1.4 });
+  }
+
+  hideResults({ keepQuality = false } = {}) {
+    [this.resultsTitle, ...this.rows.flatMap((r) => [r.label, r.value]), this.finalScore, this.bestLine, this.recordLine, this.again].forEach(
       (el, i) => el.hide({ duration: 0.5, delay: i * 0.03 }),
     );
+    if (!keepQuality) this.qualityLabel.hide({ duration: 0.5 });
+    this.nameEntry.hide();
+    this.board.hide();
   }
 
   // --- HUD updates -------------------------------------------------------------
@@ -330,7 +371,7 @@ export class UI {
     for (const el of [this.comboCount, this.comboMult, this.comboRank]) {
       this.heatScale(el);
       el.u.intensity.value = 1.5 + h * 2 + (rankUp ? 1.5 : 0);
-      this.punch(el, (rankUp ? 1.4 : 0.4) + h * 0.6);
+      this.punch(el, (rankUp ? 1.6 : 0.6) + h);
     }
     for (const el of this.comboParts) {
       if (el.u.reveal.value < 1) el.show({ duration: 0.25 });
@@ -367,7 +408,7 @@ export class UI {
     const y = (v.y * this.h) / 2 + 30 * this.k;
 
     p.setText(text);
-    p.baseScale = this.k * (blood ? 1.15 : 0.9) * (1 + this.heat * 1.1);
+    p.baseScale = this.k * (blood ? 1.15 : 0.9) * (1 + this.heat * 2);
     p.punch = 0.5 + this.heat;
     p.rotation.z = (Math.random() - 0.5) * 0.2 * (0.5 + this.heat);
     p.u.intensity.value = (blood ? 2.4 : 1.7) + this.heat * 2;
@@ -416,6 +457,8 @@ export class UI {
 
   /** Returns the UI action under the pointer, if any. */
   pick(x, y) {
+    const name = this.nameEntry.pick(x, y);
+    if (name) return name;
     const slot = this.slots.findIndex((c) => c.contains(x, y, 10));
     if (slot !== -1) return { type: "tool", index: slot };
     if (this.begin.contains(x, y, 20)) return { type: "begin" };
@@ -472,6 +515,10 @@ export class UI {
   /** Sway and shake of hot text, and the rolling score counter. */
   updateJuice(dt) {
     const t = this.time;
+    // Rank hangs under the (growing) combo numbers, the cash-out under the rank.
+    const comboBottom = this.comboCount.home.y - Math.max(this.comboCount.scale.y, this.comboMult.scale.y) * 0.8;
+    this.comboRank.home.y = comboBottom;
+    this.cashOut.home.y = this.comboRank.u.reveal.value > 0.01 ? comboBottom - this.comboRank.scale.y * 0.85 : comboBottom;
     for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) {
       const heat = el === this.cashOut ? (el.shake ?? 0) : this.heat;
       el.rotation.z = Math.sin(t * (2 + heat * 4) + el.u.seed.value) * el.sway * (0.3 + heat * 1.4);

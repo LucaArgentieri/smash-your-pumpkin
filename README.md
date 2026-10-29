@@ -1,5 +1,9 @@
 # Smash Your Pumpkin
 
+![Smash Your Pumpkin](public/og.png)
+
+**Play:** https://lucaargentieri.github.io/smash-your-pumpkin/
+
 A Halloween rage room, successor to [paint-your-pumpkin](https://github.com/LucaArgentieri/paint-your-pumpkin).
 You sit at a table in a candlelit cabin and have 60 seconds to smash as many pumpkins as you can.
 
@@ -34,6 +38,11 @@ helps on touch screens. Tuning lives in `COMBO` and `TOOLS` in `src/config.js`.
 
 ## Look
 
+The key art is an homage to the [Inscryption](https://www.inscryption.com/) cover: the game's own scene in its
+`?cover` mode (a carved pumpkin looming over a narrow lens, only the title on top), rendered by
+`node scripts/render-cover.mjs`.
+
+
 PS1 era on purpose, at every quality tier: a 200-line scene upscaled without filtering, vertices
 snapped to that pixel grid (the wobble when the camera moves), affine texture mapping, unfiltered
 textures and low-poly props (`src/core/retro.js`), plus dithering and grain on the scene only.
@@ -53,6 +62,22 @@ bun run dev
 ```
 
 In dev builds the game instance is exposed as `window.game`, for example `game.timeLeft = 1` ends the round.
+
+## Leaderboard (Supabase)
+
+A three-letter arcade name and a top 100 board, stored in Supabase.
+
+1. Create a Supabase project and run [`supabase/schema.sql`](supabase/schema.sql) in its SQL editor. It
+   creates the `scores` table (public read only), and the `submit_score` function, which validates the
+   entry, throttles repeats and trims the board to 100 rows.
+2. Copy the project URL and the **anon public** key (Project Settings > API).
+3. Locally: copy `.env.example` to `.env.local` and fill them in. For GitHub Pages: add them as
+   repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+   (Settings > Secrets and variables > Actions > Variables), then redeploy.
+
+Without them the game runs offline: no name entry, no board. The anon key is meant to be public;
+the database only allows reading the board and calling `submit_score`. A browser game can't fully
+stop forged scores, so the function only rejects implausible ones (tighten its limits once real scores exist).
 
 ## Deploy
 
@@ -75,6 +100,8 @@ Pages must serve from the `gh-pages` branch (root).
 | `src/ui/` | Burn-in UI panels, tool cards, HUD and screens |
 
 | `scripts/build-placeholders.mjs` | Generates the placeholder pumpkin GLBs |
+| `scripts/render-cover.mjs` | Renders the key art (`public/og.png`, the game in its `?cover` mode) and the favicon / touch icon (`scripts/icons.html`) |
+| `supabase/schema.sql` | Leaderboard table, policies and `submit_score` |
 
 ## Performance
 
