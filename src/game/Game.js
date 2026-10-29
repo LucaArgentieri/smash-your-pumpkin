@@ -13,6 +13,7 @@ import { loadPumpkinModel } from "../pumpkins/models.js";
 import { UI } from "../ui/UI.js";
 import { Cabin, MOON_POSITION } from "../world/Cabin.js";
 import { Destruction } from "./Destruction.js";
+import { fetchTop, lastName, leaderboardEnabled, rememberName, submitScore } from "./leaderboard.js";
 
 const PUMPKIN_SPOT = new THREE.Vector3(0, 0, 0.15);
 const LOOK_AT = new THREE.Vector3(0, 0.85, 0);
@@ -184,6 +185,7 @@ export class Game {
     if (action?.type === "quality") return this.quality.cycle();
     if (action?.type === "begin" && this.state === "title") return this.beginRound();
     if (action?.type === "again" && this.state === "results") return this.beginRound();
+    if (this.state === "name" && action?.type.startsWith("name")) return this.onNameAction(action);
     if (this.state === "playing") {
       // Holding the button keeps swinging at the tool's own pace.
       this.pointerHeld = true;
@@ -192,6 +194,7 @@ export class Game {
   }
 
   onKey(e) {
+    if (this.state === "name") return this.onNameKey(e);
     const index = ["Digit1", "Digit2", "Digit3"].indexOf(e.code);
     if (index !== -1) this.selectTool(index);
     if (e.code === "KeyQ" && this.state !== "loading") this.quality.cycle();
@@ -264,7 +267,11 @@ export class Game {
     const previousRecord = readNumber(COMBO_KEY);
     const isComboRecord = this.bestCombo > previousRecord;
     if (isComboRecord) writeNumber(COMBO_KEY, this.bestCombo);
+    // Online: ask for a name (only for runs that scored) before the board.
+    const askName = leaderboardEnabled && this.score > 0;
+    if (leaderboardEnabled) this.boardRequest = fetchTop().catch(() => null);
     this.ui.showResults({
+      askName: askName ? lastName() : null,
       score: this.score,
       pumpkins: this.pumpkinsSmashed,
       shards: this.shards,
@@ -274,6 +281,53 @@ export class Game {
       comboRecord: Math.max(previousRecord, this.bestCombo),
       isComboRecord: isComboRecord && this.bestCombo > 1,
     });
+    this.state = askName ? "name" : "results";
+  }
+
+  // --- Leaderboard --------------------------------------------------------------
+
+  onNameAction(action) {
+    const entry = this.ui.nameEntry;
+    if (action.type === "nameUp") entry.cycle(action.index, 1);
+    if (action.type === "nameDown") entry.cycle(action.index, -1);
+    if (action.type === "nameLetter") entry.select(action.index);
+    if (action.type === "nameOk") this.submitName();
+    if (action.type === "nameSkip") this.showBoard(null);
+  }
+
+  onNameKey(e) {
+    const entry = this.ui.nameEntry;
+    if (/^Key[A-Z]$|^Digit[0-9]$/.test(e.code)) entry.type(e.code.at(-1));
+    else if (e.code === "Backspace") entry.backspace();
+    else if (e.code === "ArrowUp") entry.cycle(entry.active, 1);
+    else if (e.code === "ArrowDown") entry.cycle(entry.active, -1);
+    else if (e.code === "ArrowLeft") entry.select(entry.active - 1);
+    else if (e.code === "ArrowRight") entry.select(entry.active + 1);
+    else if (e.code === "Enter") this.submitName();
+    else if (e.code === "Escape") this.showBoard(null);
+  }
+
+  async submitName() {
+    const name = this.ui.nameEntry.value;
+    rememberName(name);
+    this.state = "saving";
+    this.ui.nameEntry.setStatus(TEXT.saving);
+    let rank = null;
+    try {
+      rank = await submitScore({ name, score: this.score, combo: this.bestCombo, pumpkins: this.pumpkinsSmashed });
+      // The board fetched before submitting is stale now.
+      this.boardRequest = fetchTop().catch(() => null);
+    } catch (error) {
+      console.warn("[leaderboard] submit failed", error);
+    }
+    this.showBoard({ name, score: this.score, rank });
+  }
+
+  /** Leaderboard page; `you` is the run just submitted (null when skipped). */
+  async showBoard(you) {
+    this.state = "saving";
+    const entries = await (this.boardRequest ?? Promise.resolve(null));
+    this.ui.showBoard(entries, you);
     this.state = "results";
   }
 

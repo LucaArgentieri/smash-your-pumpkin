@@ -136,5 +136,11 @@ export const TEXT = {
   newComboRecord: "NEW COMBO RECORD",
   dust: "DUST!",
   loading: "lighting the candles...",
+  ok: "OK",
+  skip: "skip",
+  saving: "carving your name...",
+  boardTitle: "HALL OF THE SMASHED",
+  boardOffline: "the spirits are silent. no leaderboard tonight.",
+  boardEmpty: "no one has smashed here yet. be the first.",
   quality: "QUALITY",
 };

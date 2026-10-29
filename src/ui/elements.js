@@ -52,8 +52,11 @@ export class UIPanel extends THREE.Mesh {
     };
 
     const geometry = new THREE.PlaneGeometry(1, 1);
-    if (anchor === "left") geometry.translate(0.5, 0, 0);
-    if (anchor === "right") geometry.translate(-0.5, 0, 0);
+    // Anchors: "left" / "right" pin a side horizontally, "top" pins the top
+    // edge (so a panel grows downwards); they combine, e.g. "top-left".
+    if (anchor.includes("left")) geometry.translate(0.5, 0, 0);
+    if (anchor.includes("right")) geometry.translate(-0.5, 0, 0);
+    if (anchor.includes("top")) geometry.translate(0, -0.5, 0);
 
     super(geometry, UIPanel.createMaterial(map, u));
     this.canvas = canvas;
@@ -128,14 +131,15 @@ export class UIPanel extends THREE.Mesh {
     if (!this.shown) return false;
     const width = this.scale.x;
     let left = this.position.x - width / 2;
-    if (this.anchor === "left") left = this.position.x;
-    if (this.anchor === "right") left = this.position.x - width;
+    if (this.anchor.includes("left")) left = this.position.x;
+    if (this.anchor.includes("right")) left = this.position.x - width;
     const height = this.scale.y;
+    const middle = this.anchor.includes("top") ? this.position.y - height / 2 : this.position.y;
     return (
       x >= left - pad &&
       x <= left + width + pad &&
-      y >= this.position.y - height / 2 - pad &&
-      y <= this.position.y + height / 2 + pad
+      y >= middle - height / 2 - pad &&
+      y <= middle + height / 2 + pad
     );
   }
 }
@@ -206,8 +210,9 @@ function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor, back
   }
 
   ctx.textBaseline = "middle";
-  ctx.textAlign = anchor === "left" ? "left" : anchor === "right" ? "right" : "center";
-  const x = anchor === "left" ? pad : anchor === "right" ? w - pad : w / 2;
+  const side = anchor.includes("left") ? "left" : anchor.includes("right") ? "right" : "center";
+  ctx.textAlign = side;
+  const x = side === "left" ? pad : side === "right" ? w - pad : w / 2;
   const y = h / 2 + px * 0.05;
 
   const gradient = ctx.createLinearGradient(0, y - px / 2, 0, y + px / 2);
