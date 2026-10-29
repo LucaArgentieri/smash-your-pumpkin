@@ -151,7 +151,6 @@ export class UIPanel extends THREE.Mesh {
 export class UIText extends UIPanel {
   constructor({
     text = "",
-    font = "body",
     size = 32,
     width,
     anchor = "center",
@@ -161,19 +160,16 @@ export class UIText extends UIPanel {
     wobble = 0,
     backdrop = null,
   }) {
-    // The title face has swashes (tails on N, L, K...) that reach well past
-    // the advance width and below the baseline: give it extra room.
-    const swash = font === "title";
-    const pad = size * (swash ? 0.7 : 0.45);
-    const measured = measure(text, cssFont(font, size)) + pad * 2;
+    const pad = size * 0.45;
+    const measured = measure(text, cssFont(size)) + pad * 2;
     const boxWidth = width ?? measured;
     super({
       width: boxWidth,
-      height: size * (swash ? 1.95 : 1.55),
+      height: size * 1.6,
       anchor,
       intensity,
       wobble,
-      draw: (ctx, w, h, value) => drawText(ctx, w, h, value, { font, size, pad, colors, glow, anchor, backdrop }),
+      draw: (ctx, w, h, value) => drawText(ctx, w, h, value, { size, pad, colors, glow, anchor, backdrop }),
     });
     this.text = text;
     this.redraw(text);
@@ -192,12 +188,12 @@ function measure(text, css) {
   return inkWidth(ctx.measureText(text));
 }
 
-/** Width actually painted, which for swash letters exceeds the advance width. */
+/** Width actually painted, which can exceed the advance width. */
 function inkWidth(metrics) {
   return Math.max(metrics.width, metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight);
 }
 
-function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor, backdrop }) {
+function drawText(ctx, w, h, text, { size, pad, colors, glow, anchor, backdrop }) {
   if (backdrop) {
     // Dark band behind the text so it reads over bright parts of the scene.
     const band = ctx.createLinearGradient(0, 0, w, 0);
@@ -209,12 +205,12 @@ function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor, back
     ctx.fillRect(0, 0, w, h);
   }
   let px = size;
-  ctx.font = cssFont(font, px);
+  ctx.font = cssFont(px);
   const available = w - pad * 2;
   const textWidth = inkWidth(ctx.measureText(text));
   if (textWidth > available) {
     px = Math.floor(size * (available / textWidth));
-    ctx.font = cssFont(font, px);
+    ctx.font = cssFont(px);
   }
 
   ctx.textBaseline = "middle";
@@ -222,7 +218,7 @@ function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor, back
   ctx.textAlign = side;
   // Measured after textAlign is set: the bounding box is relative to it.
   const metrics = ctx.measureText(text);
-  // Centred text is centred on its ink, so a long swash on one side doesn't
+  // Centred text is centred on its ink, so an overhang on one side doesn't
   // push the word off-centre or out of the canvas.
   const x =
     side === "left"

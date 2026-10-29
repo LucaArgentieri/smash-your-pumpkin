@@ -29,27 +29,27 @@ export class UI {
     const add = (el) => (this.scene.add(el), el);
 
     // Title screen.
-    this.title1 = add(new UIText({ text: TEXT.title[0], font: "title", size: 150, wobble: 0.012, intensity: 1.2 }));
-    this.title2 = add(new UIText({ text: TEXT.title[1], font: "title", size: 80, wobble: 0.012, intensity: 1.2 }));
+    this.title1 = add(new UIText({ text: TEXT.title[0], size: 150, wobble: 0.012, intensity: 1.2 }));
+    this.title2 = add(new UIText({ text: TEXT.title[1], size: 80, wobble: 0.012, intensity: 1.2 }));
     this.tagline = add(new UIText({ text: TEXT.tagline, size: 22, ...VIOLET }));
-    this.begin = add(new UIText({ text: TEXT.begin, font: "title", size: 66, wobble: 0.03, intensity: 1.3 }));
+    this.begin = add(new UIText({ text: TEXT.begin, size: 66, wobble: 0.03, intensity: 1.3 }));
     this.boardButton = add(new UIText({ text: TEXT.boardButton, size: 22, colors: ["#e3d6ff", "#9b7bff"], glow: "#4a1f8a", intensity: 1.4 }));
-    this.back = add(new UIText({ text: TEXT.back, font: "title", size: 60, wobble: 0.03 }));
-    this.coverTitle = add(new UIText({ text: TEXT.title.join(" "), font: "title", size: 120, width: 1300, colors: ["#ffb347", "#ff6a10"], glow: "#7a1a00" }));
+    this.back = add(new UIText({ text: TEXT.back, size: 60, wobble: 0.03 }));
+    this.coverTitle = add(new UIText({ text: TEXT.title.join(" "), size: 120, width: 1300, colors: ["#ffb347", "#ff6a10"], glow: "#7a1a00" }));
     this.qualityLabel = add(new UIText({ text: "", size: 16, anchor: "left", width: 260, ...VIOLET }));
     this.soundLabel = add(new UIText({ text: "", size: 16, anchor: "right", width: 200, ...VIOLET }));
 
     // HUD.
-    this.timer = add(new UIText({ text: "60", font: "numbers", size: 104, width: 220 }));
+    this.timer = add(new UIText({ text: "60", size: 78, width: 170 }));
     this.scoreLabel = add(new UIText({ text: TEXT.score, size: 20, anchor: "left", width: 200, ...VIOLET }));
-    this.scoreValue = add(new UIText({ text: "0", font: "numbers", size: 52, anchor: "left", width: 200 }));
+    this.scoreValue = add(new UIText({ text: "0", size: 52, anchor: "left", width: 200 }));
     this.pumpkinsLabel = add(new UIText({ text: TEXT.pumpkins, size: 20, anchor: "right", width: 200, ...VIOLET }));
-    this.pumpkinsValue = add(new UIText({ text: "0", font: "numbers", size: 52, anchor: "right", width: 140 }));
+    this.pumpkinsValue = add(new UIText({ text: "0", size: 52, anchor: "right", width: 140 }));
     // Combo, split like Balatro's chips x mult: count, multiplier and rank.
-    this.comboCount = add(new UIText({ text: "x2", font: "numbers", size: 64, anchor: "top-right", width: 190 }));
-    this.comboMult = add(new UIText({ text: "1.05x", font: "numbers", size: 56, anchor: "top-left", width: 230, ...BLOOD }));
-    this.comboRank = add(new UIText({ text: "", font: "title", size: 38, anchor: "top", width: 560, wobble: 0.03 }));
-    this.cashOut = add(new UIText({ text: "", font: "title", size: 46, anchor: "top", width: 760, wobble: 0.03 }));
+    this.comboCount = add(new UIText({ text: "x2", size: 64, anchor: "top-right", width: 190 }));
+    this.comboMult = add(new UIText({ text: "1.05x", size: 56, anchor: "top-left", width: 230, ...BLOOD }));
+    this.comboRank = add(new UIText({ text: "", size: 38, anchor: "top", width: 560, wobble: 0.03 }));
+    this.cashOut = add(new UIText({ text: "", size: 46, anchor: "top", width: 760, wobble: 0.03 }));
     // Balatro / Vampire Survivors escalation: at full heat the count more than
     // doubles and the multiplier nearly triples.
     this.comboCount.heatGain = 1.5;
@@ -57,7 +57,7 @@ export class UI {
     this.comboRank.heatGain = 0.8;
     for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) el.sway = 0.06;
     // What the combo would pay if banked now: the reason to keep it alive.
-    this.bank = add(new UIText({ text: "", font: "numbers", size: 40, anchor: "top", width: 420, colors: ["#fff1c9", "#ffb347"], glow: "#ff7a1a" }));
+    this.bank = add(new UIText({ text: "", size: 40, anchor: "top", width: 420, colors: ["#fff1c9", "#ffb347"], glow: "#ff7a1a" }));
     this.bank.heatGain = 0.9;
     this.bank.sway = 0.03;
     this.comboParts = [this.comboCount, this.comboMult, this.comboRank];
@@ -66,19 +66,19 @@ export class UI {
     this.targetScore = 0;
 
     // Big centre messages: READY / SMASH / TIME'S UP.
-    this.big = add(new UIText({ text: TEXT.timeUp, font: "title", size: 150, width: 980, wobble: 0.02 }));
+    this.big = add(new UIText({ text: TEXT.timeUp, size: 150, width: 980, wobble: 0.02 }));
 
     // Results.
-    this.resultsTitle = add(new UIText({ text: TEXT.results, font: "title", size: 72, width: 980, wobble: 0.01 }));
+    this.resultsTitle = add(new UIText({ text: TEXT.results, size: 72, width: 980, wobble: 0.01 }));
     // Where the score came from: hits, banked combos, plus the run's stats.
     this.rows = [TEXT.smashing, TEXT.banked, TEXT.pumpkins, TEXT.bestCombo].map((label) => ({
       label: add(new UIText({ text: label, size: 28, anchor: "left", width: 300, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" })),
-      value: add(new UIText({ text: "0", font: "numbers", size: 46, anchor: "right", width: 220 })),
+      value: add(new UIText({ text: "0", size: 46, anchor: "right", width: 220 })),
     }));
-    this.finalScore = add(new UIText({ text: "0", font: "numbers", size: 110, width: 620, wobble: 0.015 }));
+    this.finalScore = add(new UIText({ text: "0", size: 110, width: 620, wobble: 0.015 }));
     this.bestLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" }));
     this.recordLine = add(new UIText({ text: "", size: 24, width: 520, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" }));
-    this.again = add(new UIText({ text: TEXT.again, font: "title", size: 76, wobble: 0.03 }));
+    this.again = add(new UIText({ text: TEXT.again, size: 76, wobble: 0.03 }));
 
     // Leaderboard: name entry on the results page, then the board.
     this.nameEntry = new NameEntry(add);
@@ -150,7 +150,8 @@ export class UI {
     place(this.qualityLabel, left + margin * 0.6, top - Math.max(16, 20 * k), w * 0.5);
     place(this.soundLabel, right - margin * 0.6, top - Math.max(16, 20 * k), w * 0.4);
 
-    place(this.timer, 0, top - 70 * k);
+    // On phones the timer gets at most a quarter of the width, so it doesn't crowd the corners.
+    place(this.timer, 0, top - 60 * k, w * 0.24);
     place(this.scoreLabel, left + margin, top - 34 * k);
     // Alagard digits stand tall: the values sit a little lower, clear of the labels.
     place(this.scoreValue, left + margin, top - 76 * k, w / 2 - margin - 60 * k);

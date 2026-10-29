@@ -103,16 +103,13 @@ export const PALETTE = {
   ink: "#1a0d0a",
 };
 
-// Titles, words and numbers: Alagard by Hewett Tsoi (free, credit given in
-// README; public/fonts/), a bitmap gothic made for games.
-export const FONTS = {
-  title: { family: '"Alagard", serif', weight: 400 },
-  numbers: { family: '"Alagard", serif', weight: 400 },
-  body: { family: '"Pixelify Sans", monospace', weight: 400 },
-};
+// The game's one typeface: Alagard by Hewett Tsoi (free, credit given in
+// README; public/fonts/), a bitmap gothic made for games. `FONT.family` is
+// mutable so dev builds can preview alternatives (?font=, see Game.js).
+export const FONT = { family: '"Alagard", serif' };
 
 /** CSS font shorthand for canvas text. */
-export const font = (name, px, weight = FONTS[name].weight) => `${weight} ${px}px ${FONTS[name].family}`;
+export const font = (px) => `${px}px ${FONT.family}`;
 
 export const TEXT = {
   title: ["SMASH", "YOUR PUMPKIN"],

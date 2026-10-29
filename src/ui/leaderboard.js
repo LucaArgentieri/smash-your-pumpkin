@@ -11,10 +11,10 @@ const ROWS = 10;
  */
 export class NameEntry {
   constructor(add) {
-    this.letters = [0, 1, 2].map(() => add(new UIText({ text: "A", font: "body", size: 84, width: 100 })));
+    this.letters = [0, 1, 2].map(() => add(new UIText({ text: "A", size: 84, width: 100 })));
     this.ups = [0, 1, 2].map(() => add(new UIText({ text: "▲", size: 30, width: 80, ...VIOLET })));
     this.downs = [0, 1, 2].map(() => add(new UIText({ text: "▼", size: 30, width: 80, ...VIOLET })));
-    this.ok = add(new UIText({ text: TEXT.ok, font: "title", size: 56, wobble: 0.03 }));
+    this.ok = add(new UIText({ text: TEXT.ok, size: 56, wobble: 0.03 }));
     this.skip = add(new UIText({ text: TEXT.skip, size: 26, ...VIOLET }));
     this.status = add(new UIText({ text: "", size: 20, width: 600, ...VIOLET }));
     this.name = ["A", "A", "A"];
@@ -116,20 +116,20 @@ export class NameEntry {
  */
 export class Board {
   constructor(add) {
-    this.title = add(new UIText({ text: TEXT.boardTitle, font: "title", size: 66, width: 980, wobble: 0.01 }));
+    this.title = add(new UIText({ text: TEXT.boardTitle, size: 66, width: 980, wobble: 0.01 }));
     const row = () => ({
-      rank: add(new UIText({ text: "", font: "numbers", size: 34, anchor: "right", width: 110 })),
-      name: add(new UIText({ text: "", font: "body", size: 32, anchor: "left", width: 150 })),
+      rank: add(new UIText({ text: "", size: 34, anchor: "right", width: 110 })),
+      name: add(new UIText({ text: "", size: 32, anchor: "left", width: 150 })),
       // Best combo in the blood red of the in-game multiplier.
-      combo: add(new UIText({ text: "", font: "numbers", size: 30, anchor: "right", width: 130, colors: ["#ffb08a", "#ff2a10"], glow: "#ff1a00" })),
-      score: add(new UIText({ text: "", font: "numbers", size: 34, anchor: "right", width: 220 })),
+      combo: add(new UIText({ text: "", size: 30, anchor: "right", width: 130, colors: ["#ffb08a", "#ff2a10"], glow: "#ff1a00" })),
+      score: add(new UIText({ text: "", size: 34, anchor: "right", width: 220 })),
     });
     this.rows = Array.from({ length: ROWS }, row);
     this.you = row();
     this.status = add(new UIText({ text: "", size: 22, width: 640, ...VIOLET }));
     this.up = add(new UIText({ text: "▲", size: 30, width: 90, ...VIOLET }));
     this.down = add(new UIText({ text: "▼", size: 30, width: 90, ...VIOLET }));
-    this.pageLabel = add(new UIText({ text: "", font: "numbers", size: 22, width: 220, ...VIOLET }));
+    this.pageLabel = add(new UIText({ text: "", size: 22, width: 220, ...VIOLET }));
     this.entries = [];
     this.page = 0;
     this.open = false;
