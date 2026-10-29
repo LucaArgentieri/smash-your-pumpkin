@@ -92,7 +92,6 @@ export class Game {
     this.shake = 0;
     this.tool = 0;
     this.cooldownUntil = 0;
-    this.pointerHeld = false;
     this.cameraMode = "play";
     this.cameraPosition = CAMERA_HOME.clone();
     this.cameraLook = LOOK_AT.clone();
@@ -209,15 +208,20 @@ export class Game {
       this.onPointerMove(e);
       this.onPointerDown();
     });
-    const release = () => (this.pointerHeld = false);
-    window.addEventListener("pointerup", release);
-    window.addEventListener("pointercancel", release);
-    window.addEventListener("blur", release);
+    // Vertical swipe pages through the leaderboard on touch screens.
+    canvas.addEventListener("pointerdown", (e) => (this.swipeFrom = e.clientY));
+    canvas.addEventListener("pointerup", (e) => {
+      const dy = e.clientY - (this.swipeFrom ?? e.clientY);
+      if (Math.abs(dy) > 50) this.turnBoard(dy < 0 ? 1 : -1);
+      this.swipeFrom = null;
+    });
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     canvas.addEventListener(
       "wheel",
       (e) => {
-        if (this.state !== "playing" || e.deltaY === 0) return;
+        if (e.deltaY === 0) return;
+        if (this.ui.board.open) return this.turnBoard(Math.sign(e.deltaY));
+        if (this.state !== "playing") return;
         this.selectTool((this.tool + Math.sign(e.deltaY) + TOOLS.length) % TOOLS.length);
       },
       { passive: true },
@@ -244,18 +248,20 @@ export class Game {
     if (action?.type === "sound") return this.toggleSound();
     if (action?.type === "begin" && this.state === "title") return this.beginRound();
     if (action?.type === "board" && this.state === "title") return this.openBoard();
+    if (action?.type === "boardPage") return this.turnBoard(action.step);
     if (action?.type === "back" && this.state === "board") return this.closeBoard();
     if (action?.type === "again" && this.state === "results") return this.beginRound();
     if (this.state === "name" && action?.type.startsWith("name")) return this.onNameAction(action);
-    if (this.state === "playing") {
-      // Holding the button keeps swinging at the tool's own pace.
-      this.pointerHeld = true;
-      this.smash({ deliberate: true });
-    }
+    // One click, one blow (no holding): speed and the right weapon score.
+    if (this.state === "playing") this.smash();
   }
 
   onKey(e) {
     if (this.state === "name") return this.onNameKey(e);
+    if (this.ui.board.open) {
+      const step = { ArrowDown: 1, PageDown: 1, ArrowUp: -1, PageUp: -1 }[e.code];
+      if (step) return this.turnBoard(step);
+    }
     const index = ["Digit1", "Digit2", "Digit3"].indexOf(e.code);
     if (index !== -1) this.selectTool(index);
     if (e.code === "KeyQ" && this.state !== "loading") this.quality.cycle();
@@ -318,7 +324,6 @@ export class Game {
 
   async endRound() {
     this.state = "over";
-    this.pointerHeld = false;
     this.endCombo({ cashOut: true });
     if (this.pendingQuality) {
       this.cabin.setQuality(this.pendingQuality);
@@ -368,6 +373,11 @@ export class Game {
     this.dim(0.35);
     const entries = await fetchTop().catch(() => null);
     if (this.state === "board") this.ui.fillBoardFromTitle(entries);
+  }
+
+  /** Pages the leaderboard, wherever it is open. */
+  turnBoard(step) {
+    if (this.ui.board.turn(step)) this.sound.blip();
   }
 
   closeBoard() {
@@ -482,18 +492,17 @@ export class Game {
 
   // --- Smashing -----------------------------------------------------------------
 
-  /** `deliberate`: a fresh click, not an auto-repeat from holding the button. */
-  async smash({ deliberate = false } = {}) {
+  /** One click: one swing of the selected weapon, within its cooldown. */
+  async smash() {
     if (this.elapsed < this.cooldownUntil) return;
     this.raycaster.setFromCamera(this.ndc, this.camera);
     const targets = this.destruction.targets(this.pumpkin);
     const hit = this.raycaster.intersectObjects(targets, false)[0] ?? this.nearMiss(targets);
-    if (hit || deliberate) this.ui.strike();
-    if (!hit && deliberate) this.sound.whiff();
+    this.ui.strike();
     if (!hit) {
-      // A deliberate swing at nothing breaks the combo (no cash-out). Held
-      // swings sweeping over empty table are only throttled.
-      if (deliberate && this.combo > 1) this.endCombo({ cashOut: false });
+      // A swing at nothing breaks the combo (no cash-out).
+      this.sound.whiff();
+      if (this.combo > 1) this.endCombo({ cashOut: false });
       this.cooldownUntil = this.elapsed + 0.08;
       return;
     }
@@ -685,7 +694,6 @@ export class Game {
     this.cabin.update(this.elapsed);
 
     if (this.state === "playing") {
-      if (this.pointerHeld) this.smash();
       if (this.combo > 0) {
         const left = 1 - (this.elapsed - this.lastHitAt) / this.comboWindow();
         this.renderer.uniforms.fireLeft.value = Math.max(0, left);

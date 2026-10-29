@@ -109,7 +109,11 @@ export class NameEntry {
   }
 }
 
-/** The top ten (and the player's own row, if they placed lower). */
+/**
+ * The top 100, ten rows per page: arrows (or wheel, arrow keys, swipe) page
+ * through it, and it opens on the page holding the player's own entry. A run
+ * that missed the top 100 is shown on an extra row below.
+ */
 export class Board {
   constructor(add) {
     this.title = add(new UIText({ text: TEXT.boardTitle, font: "title", size: 66, width: 980, wobble: 0.01 }));
@@ -123,10 +127,27 @@ export class Board {
     this.rows = Array.from({ length: ROWS }, row);
     this.you = row();
     this.status = add(new UIText({ text: "", size: 22, width: 640, ...VIOLET }));
+    this.up = add(new UIText({ text: "▲", size: 30, width: 90, ...VIOLET }));
+    this.down = add(new UIText({ text: "▼", size: 30, width: 90, ...VIOLET }));
+    this.pageLabel = add(new UIText({ text: "", font: "numbers", size: 22, width: 220, ...VIOLET }));
+    this.entries = [];
+    this.page = 0;
+    this.open = false;
+  }
+
+  get pages() {
+    return Math.max(1, Math.ceil(this.entries.length / ROWS));
   }
 
   get elements() {
-    return [this.title, ...[...this.rows, this.you].flatMap((r) => [r.rank, r.name, r.combo, r.score]), this.status];
+    return [
+      this.title,
+      ...[...this.rows, this.you].flatMap((r) => [r.rank, r.name, r.combo, r.score]),
+      this.status,
+      this.up,
+      this.down,
+      this.pageLabel,
+    ];
   }
 
   layout(place, { k, top, fitWidth }) {
@@ -139,9 +160,17 @@ export class Board {
       place(r.combo, column * 0.12, y, column * 0.22);
       place(r.score, column / 2, y, column * 0.36);
     };
-    this.rows.forEach((r, i) => lay(r, top - 175 * k - i * 36 * k));
-    lay(this.you, top - 175 * k - ROWS * 36 * k - 16 * k);
+    const first = top - 185 * k;
+    this.rows.forEach((r, i) => lay(r, first - i * 36 * k));
     place(this.status, 0, top - 300 * k);
+    // Pager under the rows: ▲  31–40 / 100  ▼
+    const pager = first - ROWS * 36 * k - 4 * k;
+    const gap = Math.min(150 * k, fitWidth / 2 - 30);
+    place(this.up, -gap, pager);
+    place(this.pageLabel, 0, pager);
+    place(this.down, gap, pager);
+    // A run outside the top 100 sits below the pager.
+    lay(this.you, pager - 46 * k);
   }
 
   loading() {
@@ -154,6 +183,10 @@ export class Board {
   show(entries, you, delay = 0) {
     this.title.show({ duration: 1, delay });
     this.status.hide({ duration: 0.3 });
+    this.entries = entries ?? [];
+    this.yourRun = you;
+    this.page = you?.rank ? Math.min(Math.floor((you.rank - 1) / ROWS), this.pages - 1) : 0;
+    this.open = Boolean(entries?.length);
     if (!entries) {
       this.status.setText(TEXT.boardOffline);
       this.status.show({ duration: 0.6, delay: delay + 0.4 });
@@ -164,24 +197,61 @@ export class Board {
       this.status.show({ duration: 0.6, delay: delay + 0.4 });
       return;
     }
-    const fill = (r, position, entry, highlight, at) => {
-      r.rank.setText(`${position}.`);
-      r.name.setText(entry.name);
-      r.score.setText(String(entry.score));
-      r.combo.setText(entry.best_combo ? `x${entry.best_combo}` : "");
-      for (const el of [r.rank, r.name, r.combo, r.score]) {
-        el.u.intensity.value = highlight ? 2.8 : 1.4;
-        el.u.wobble.value = highlight ? 0.04 : 0;
-        el.show({ duration: 0.5, delay: at });
-      }
-    };
-    entries.slice(0, ROWS).forEach((entry, i) => fill(this.rows[i], i + 1, entry, you?.rank === i + 1, delay + 0.4 + i * 0.07));
-    if (you?.rank && you.rank > ROWS) {
-      fill(this.you, you.rank, you, true, delay + 0.4 + ROWS * 0.07);
+    this.render(delay + 0.4);
+    // Outside the top 100: still show the player's run under the list.
+    if (you && !you.rank) this.fill(this.you, "–", you, true, delay + 0.4 + ROWS * 0.07);
+  }
+
+  fill(r, position, entry, highlight, at) {
+    r.rank.setText(`${position}.`);
+    r.name.setText(entry.name);
+    r.score.setText(String(entry.score));
+    r.combo.setText(entry.best_combo ? `x${entry.best_combo}` : "");
+    for (const el of [r.rank, r.name, r.combo, r.score]) {
+      el.u.intensity.value = highlight ? 2.8 : 1.4;
+      el.u.wobble.value = highlight ? 0.04 : 0;
+      el.show({ duration: 0.4, delay: at });
     }
   }
 
+  /** Draws the current page; rows burn in one after another. */
+  render(delay = 0) {
+    const start = this.page * ROWS;
+    const yourRank = this.yourRun?.rank;
+    this.rows.forEach((r, i) => {
+      const entry = this.entries[start + i];
+      if (entry) this.fill(r, start + i + 1, entry, yourRank === start + i + 1, delay + i * 0.05);
+      else for (const el of [r.rank, r.name, r.combo, r.score]) el.hide({ duration: 0.2 });
+    });
+    const paged = this.pages > 1;
+    this.pageLabel.setText(`${start + 1}–${Math.min(start + ROWS, this.entries.length)} / ${this.entries.length}`);
+    for (const el of [this.pageLabel, this.up, this.down]) {
+      if (paged) el.show({ duration: 0.4, delay });
+      else el.hide({ duration: 0.2 });
+    }
+    this.up.u.intensity.value = this.page > 0 ? 1.6 : 0.35;
+    this.down.u.intensity.value = this.page < this.pages - 1 ? 1.6 : 0.35;
+  }
+
+  /** Moves `step` pages; returns whether the page changed. */
+  turn(step) {
+    if (!this.open) return false;
+    const page = Math.max(0, Math.min(this.pages - 1, this.page + step));
+    if (page === this.page) return false;
+    this.page = page;
+    this.render();
+    return true;
+  }
+
+  pick(x, y) {
+    if (!this.open) return null;
+    if (this.up.contains(x, y, 18)) return { type: "boardPage", step: -1 };
+    if (this.down.contains(x, y, 18)) return { type: "boardPage", step: 1 };
+    return null;
+  }
+
   hide() {
+    this.open = false;
     this.elements.forEach((el) => el.hide({ duration: 0.4 }));
   }
 }
