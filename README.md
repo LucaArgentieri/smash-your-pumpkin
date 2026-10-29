@@ -86,9 +86,8 @@ A three-letter arcade name and a top 100 board, stored in Supabase.
    creates the `scores` table (public read only), and the `submit_score` function, which validates the
    entry, throttles repeats and trims the board to 100 rows.
 2. Copy the project URL and the **anon public** key (Project Settings > API).
-3. Locally: copy `.env.example` to `.env.local` and fill them in. For GitHub Pages: add them as
-   repository variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
-   (Settings > Secrets and variables > Actions > Variables), then redeploy.
+3. Put them in `.env.production` (committed, they are public by design) for the deployed game, or
+   in `.env.local` (copy `.env.example`) for local development.
 
 Without them the game runs offline: no name entry, no board. The anon key is meant to be public;
 the database only allows reading the board and calling `submit_score`. A browser game can't fully

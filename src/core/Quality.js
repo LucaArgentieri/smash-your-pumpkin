@@ -162,13 +162,10 @@ function detectTier(renderer) {
     // Some browsers hide the GPU; fall through to the other hints.
   }
 
-  const coarse = matchMedia("(pointer: coarse)").matches;
-  const cores = navigator.hardwareConcurrency ?? 4;
-  const memory = navigator.deviceMemory ?? 8;
-
+  // Defaults: medium on computers, low on phones and tablets, minimal on
+  // software rendering. HIGH is opt-in (Q); the governor only steps down.
   if (/swiftshader|llvmpipe|software|basic render|microsoft basic/i.test(gpu)) return "minimal";
-  if (coarse || cores <= 4 || memory <= 4) return "low";
-  if (/nvidia|geforce|rtx|gtx|radeon rx|radeon pro|apple m\d|apple gpu/i.test(gpu)) return "high";
+  if (matchMedia("(pointer: coarse)").matches) return "low";
   return "medium";
 }
 

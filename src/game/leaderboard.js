@@ -1,7 +1,8 @@
 // Supabase leaderboard over plain REST (no client library): reads the public
 // `scores` table and submits through the `submit_score` function defined in
 // supabase/schema.sql. Configured with VITE_SUPABASE_URL and
-// VITE_SUPABASE_ANON_KEY; without them the game simply runs offline.
+// VITE_SUPABASE_ANON_KEY (.env.production for the deployed game, .env.local
+// for development); without them the game simply runs offline.
 
 const URL = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, "");
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -19,7 +20,9 @@ async function request(path, options = {}) {
       signal: controller.signal,
       headers: {
         apikey: KEY,
-        Authorization: `Bearer ${KEY}`,
+        // Legacy anon keys are JWTs and go in Authorization too; the newer
+        // sb_publishable_ keys only belong in the apikey header.
+        ...(KEY.startsWith("eyJ") && { Authorization: `Bearer ${KEY}` }),
         "Content-Type": "application/json",
         ...options.headers,
       },

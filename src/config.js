@@ -135,7 +135,6 @@ export const TEXT = {
   comboRecord: "COMBO RECORD",
   newComboRecord: "NEW COMBO RECORD",
   dust: "DUST!",
-  loading: "lighting the candles...",
   ok: "OK",
   skip: "skip",
   saving: "carving your name...",
