@@ -73,8 +73,17 @@ export class Destruction {
     pumpkin.dispose();
 
     let pieces = [];
-    if (tool.method === "slice") pieces = this.slice(pumpkin.mesh, point, direction, tool);
-    else if (shards) pieces = this.spawnPieces(pumpkin.mesh, shards, point, direction, tool);
+    try {
+      if (tool.method === "slice") pieces = this.slice(pumpkin.mesh, point, direction, tool);
+      // A cut that missed or failed still has to break the pumpkin, which is
+      // already off the table: fall back to its precomputed shards.
+      if (pieces.length === 0) {
+        shards ??= await pumpkin.shards.catch(() => null);
+        if (shards) pieces = this.spawnPieces(pumpkin.mesh, shards, point, direction, tool);
+      }
+    } catch (error) {
+      console.warn("[destruction] pumpkin break failed", error);
+    }
 
     if (stem) {
       this.scene.add(stem);
@@ -143,7 +152,14 @@ export class Destruction {
     const localNormal = normal.clone().applyQuaternion(inverse);
     const localOrigin = target.worldToLocal(point.clone());
 
-    const raw = target.slice(localNormal, localOrigin);
+    let raw;
+    try {
+      raw = target.slice(localNormal, localOrigin);
+    } catch (error) {
+      // Degenerate geometry can make the slicer throw; treat it as a miss.
+      console.warn("[destruction] slice failed", error);
+      return [];
+    }
     if (raw.length < 2) {
       // Plane missed the mesh: treat it as a glancing blow.
       return [];

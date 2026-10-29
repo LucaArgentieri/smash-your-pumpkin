@@ -444,15 +444,36 @@ export class Game {
     return this.lastVariant;
   }
 
-  async spawnPumpkin(variant = this.nextVariant()) {
-    const pumpkin = await Pumpkin.create(variant, {
-      scene: this.scene,
-      physics: this.physics,
-      pool: this.pool,
-    });
+  async spawnPumpkin(variant) {
+    // One at a time, and never on top of a pumpkin that's still whole.
+    if (this.spawning || (this.pumpkin && this.pumpkin.state !== "broken")) return;
+    this.spawning = true;
+    let pumpkin;
+    try {
+      pumpkin = await Pumpkin.create(variant ?? this.nextVariant(), {
+        scene: this.scene,
+        physics: this.physics,
+        pool: this.pool,
+      });
+    } finally {
+      this.spawning = false;
+    }
     this.pumpkin = pumpkin;
     pumpkin.spawn(PUMPKIN_SPOT);
     if (this.cameraMode === "showcase") pumpkin.mesh.rotation.y = MOON_GAZE;
+  }
+
+  /**
+   * Safety net: whatever went wrong, the table is never left empty for long
+   * (normally a broken pumpkin is replaced after GAME.nextPumpkinDelay).
+   */
+  watchPumpkin(dt) {
+    const missing = !this.pumpkin || this.pumpkin.state === "broken";
+    this.pumpkinMissingFor = missing && !this.spawning ? (this.pumpkinMissingFor ?? 0) + dt : 0;
+    if (this.pumpkinMissingFor > GAME.nextPumpkinDelay + 1 && this.state !== "cover") {
+      this.pumpkinMissingFor = 0;
+      this.spawnPumpkin();
+    }
   }
 
   /** Slowly turns the pumpkin on the table (towards the moon for results). */
@@ -492,7 +513,15 @@ export class Game {
     // Sound on the swing, not when the fracture comes back from the worker.
     this.sound.hit(tool.id, { onPumpkin: Boolean(pumpkin) || hit.object.userData.generation < 99 });
     const direction = this.raycaster.ray.direction.clone();
-    const result = await this.destruction.hit(hit.object, hit.point, direction, tool);
+    let result;
+    try {
+      result = await this.destruction.hit(hit.object, hit.point, direction, tool);
+    } catch (error) {
+      // Never let a failed fracture stall the round; the watchdog in frame()
+      // brings a new pumpkin if this one was lost.
+      console.warn("[smash] hit failed", error);
+      return;
+    }
 
     if (result.type === "break") this.sound.burst();
     if (result.type === "dust") this.sound.dust();
@@ -652,6 +681,7 @@ export class Game {
     this.quality.sample(realDt);
     this.physics.step(dt);
     this.pumpkin?.update(dt);
+    this.watchPumpkin(dt);
     this.destruction.update(dt);
     this.debris.update(dt);
     this.cabin.update(this.elapsed);

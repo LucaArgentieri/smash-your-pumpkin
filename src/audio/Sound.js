@@ -85,8 +85,10 @@ export class Sound {
     for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
   }
 
+  // Cues take `t = this.now` as a default argument, evaluated before their
+  // ready check, so this must not throw while audio is still locked.
   get now() {
-    return this.ctx.currentTime;
+    return this.ctx?.currentTime ?? 0;
   }
 
   get ready() {
