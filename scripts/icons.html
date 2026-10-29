@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <!-- Pixel-art favicon and touch icon, rendered to PNG by scripts/render-cover.mjs. -->
+    <style>
+      body { margin: 0; background: #000; }
+      canvas { display: block; image-rendering: pixelated; }
+    </style>
+  </head>
+  <body>
+    <canvas id="favicon" width="32" height="32"></canvas>
+    <canvas id="touch" width="180" height="180"></canvas>
+    <script type="module">
+      /** 16 x 16 jack-o'-lantern for the tab and home screen. */
+      function favicon(id, size) {
+        const px = document.createElement("canvas");
+        px.width = 16;
+        px.height = 16;
+        const c = px.getContext("2d");
+        const map = [
+          "......##........",
+          ".......#........",
+          "...########.....",
+          "..##########....",
+          ".############...",
+          ".##o##o###o##...",
+          "##ooo###ooo###..",
+          "##o#o###o#o###..",
+          "###############.",
+          "##############..",
+          "##x#x#x#x#x###..",
+          "##xxxxxxxxx###..",
+          ".############...",
+          "..##########....",
+          "...########.....",
+          "................",
+        ];
+        const colors = { "#": "#c2410c", o: "#ffd36a", x: "#2a0503" };
+        map.forEach((row, y) =>
+          [...row].forEach((ch, x) => {
+            if (ch === ".") return;
+            c.fillStyle = y < 2 ? "#3d4a18" : colors[ch];
+            c.fillRect(x + 1, y, 1, 1);
+          }),
+        );
+        // Darker ribs.
+        c.fillStyle = "rgba(60, 8, 4, 0.45)";
+        for (const x of [5, 9]) for (let y = 3; y < 14; y++) if (c.getImageData(x, y, 1, 1).data[0] === 0xc2) c.fillRect(x, y, 1, 1);
+        const out = document.getElementById(id).getContext("2d");
+        out.imageSmoothingEnabled = false;
+        out.drawImage(px, 0, 0, size, size);
+      }
+
+      favicon("favicon", 32);
+      favicon("touch", 180);
+      window.ready = true;
+    </script>
+  </body>
+</html>

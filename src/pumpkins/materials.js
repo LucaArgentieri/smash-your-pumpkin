@@ -73,7 +73,7 @@ export function getPumpkinMaterials(variant, look, stemLook) {
   let faceGlow = vec3(0);
   if (look.emissiveMap) faceGlow = texture(unfiltered(look.emissiveMap), skinUV).rgb.mul(color(look.emissive));
   else if (variant.glowFromAlbedo && look.map) faceGlow = albedo.mul(smoothstep(0.55, 0.85, luminance(albedo)));
-  outer.emissiveNode = faceGlow.mul(flicker).mul(4.5).add(rim).add(flash);
+  outer.emissiveNode = faceGlow.mul(flicker).mul(2.6).add(rim).add(flash);
   outer.opacityNode = dissolve.x;
   outer.alphaTest = 0.5;
 

@@ -38,7 +38,9 @@ helps on touch screens. Tuning lives in `COMBO` and `TOOLS` in `src/config.js`.
 
 ## Look
 
-The key art is an homage to the [Inscryption](https://www.inscryption.com/) cover.
+The key art is an homage to the [Inscryption](https://www.inscryption.com/) cover: the game's own scene in its
+`?cover` mode (a carved pumpkin looming over a narrow lens, only the title on top), rendered by
+`node scripts/render-cover.mjs`.
 
 
 PS1 era on purpose, at every quality tier: a 200-line scene upscaled without filtering, vertices
@@ -98,7 +100,7 @@ Pages must serve from the `gh-pages` branch (root).
 | `src/ui/` | Burn-in UI panels, tool cards, HUD and screens |
 
 | `scripts/build-placeholders.mjs` | Generates the placeholder pumpkin GLBs |
-| `scripts/render-cover.mjs` | Renders the key art (`public/og.png`), favicon and touch icon from `scripts/cover/cover.html` |
+| `scripts/render-cover.mjs` | Renders the key art (`public/og.png`, the game in its `?cover` mode) and the favicon / touch icon (`scripts/icons.html`) |
 | `supabase/schema.sql` | Leaderboard table, policies and `submit_score` |
 
 ## Performance

@@ -32,6 +32,12 @@ const SHOWCASE_POSITION = PUMPKIN_SPOT.clone()
   .add(new THREE.Vector3(0, 1.6, 0));
 const SHOWCASE_LOOK = PUMPKIN_SPOT.clone().addScaledVector(TO_MOON, 9).addScaledVector(ACROSS_MOON, 2);
 
+// Key-art shot, a narrow lens framed like the Inscryption cover: eyes in the
+// top third, the top of the pumpkin cropped, the title across the nose.
+const COVER_POSITION = new THREE.Vector3(0, 1.0, 3.6);
+const COVER_LOOK = new THREE.Vector3(0, 0.6, 0.15);
+const COVER_FOV = 30;
+
 const BEST_KEY = "smash-your-pumpkin:best";
 const COMBO_KEY = "smash-your-pumpkin:combo-record";
 // How far (world units) a click may miss a shard and still count: small
@@ -103,10 +109,31 @@ export class Game {
     this.quality.onChange((preset) => this.onQualityChange(preset));
 
     this.ui.hideLoading();
+    if (new URLSearchParams(location.search).has("cover")) return this.startCover();
     this.state = "title";
     this.spawnPumpkin();
     this.ui.showTitle();
     this.dim(1);
+  }
+
+  /**
+   * Key-art mode (?cover), rendered by scripts/render-cover.mjs: a carved
+   * pumpkin looming over the camera like the Inscryption cover, with only
+   * the title on top. Sets `window.coverReady` once the pumpkin has settled.
+   */
+  async startCover() {
+    this.state = "cover";
+    this.cameraMode = "cover";
+    this.camera.fov = COVER_FOV;
+    this.camera.updateProjectionMatrix();
+    this.cameraPosition.copy(COVER_POSITION);
+    this.cameraLook.copy(COVER_LOOK);
+    this.quality.set("high");
+    this.cabin.setQuality(this.quality.preset);
+    await this.spawnPumpkin(VARIANTS.find((v) => v.name === "Jack"));
+    this.pumpkin.mesh.rotation.y = 0;
+    this.ui.showCover();
+    tweens.after(2.5, () => (window.coverReady = true));
   }
 
   resetStats() {
@@ -347,8 +374,7 @@ export class Game {
     return this.lastVariant;
   }
 
-  async spawnPumpkin() {
-    const variant = this.nextVariant();
+  async spawnPumpkin(variant = this.nextVariant()) {
     const pumpkin = await Pumpkin.create(variant, {
       scene: this.scene,
       physics: this.physics,
@@ -524,7 +550,7 @@ export class Game {
     // Keep the table's width in view on portrait screens.
     const minHorizontalFov = THREE.MathUtils.degToRad(52);
     const vertical = 2 * Math.atan(Math.tan(minHorizontalFov / 2) / aspect);
-    this.camera.fov = Math.max(48, THREE.MathUtils.radToDeg(vertical));
+    this.camera.fov = this.cameraMode === "cover" ? COVER_FOV : Math.max(48, THREE.MathUtils.radToDeg(vertical));
     this.camera.updateProjectionMatrix();
     this.renderer.resize();
     this.ui.layout(w, h);
@@ -573,7 +599,10 @@ export class Game {
     const target = _cameraTarget;
     const look = _lookTarget;
     let roll = 0;
-    if (this.cameraMode === "showcase") {
+    if (this.cameraMode === "cover") {
+      target.copy(COVER_POSITION);
+      look.copy(COVER_LOOK);
+    } else if (this.cameraMode === "showcase") {
       // Slow, layered sine drift and roll: the arcade attract-mode float.
       const t = this.elapsed;
       const drift = this.reducedMotion ? 0.3 : 1;
