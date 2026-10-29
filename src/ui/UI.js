@@ -42,9 +42,9 @@ export class UI {
     // HUD.
     this.timer = add(new UIText({ text: "60", font: "numbers", size: 104, width: 220 }));
     this.scoreLabel = add(new UIText({ text: TEXT.score, size: 20, anchor: "left", width: 200, ...VIOLET }));
-    this.scoreValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "left", width: 210 }));
+    this.scoreValue = add(new UIText({ text: "0", font: "numbers", size: 52, anchor: "left", width: 200 }));
     this.pumpkinsLabel = add(new UIText({ text: TEXT.pumpkins, size: 20, anchor: "right", width: 200, ...VIOLET }));
-    this.pumpkinsValue = add(new UIText({ text: "0", font: "numbers", size: 64, anchor: "right", width: 160 }));
+    this.pumpkinsValue = add(new UIText({ text: "0", font: "numbers", size: 52, anchor: "right", width: 140 }));
     // Combo, split like Balatro's chips x mult: count, multiplier and rank.
     this.comboCount = add(new UIText({ text: "x2", font: "numbers", size: 64, anchor: "top-right", width: 190 }));
     this.comboMult = add(new UIText({ text: "1.05x", font: "numbers", size: 56, anchor: "top-left", width: 230, ...BLOOD }));
@@ -152,9 +152,10 @@ export class UI {
 
     place(this.timer, 0, top - 70 * k);
     place(this.scoreLabel, left + margin, top - 34 * k);
-    place(this.scoreValue, left + margin, top - 68 * k, w / 2 - margin - 60 * k);
+    // Alagard digits stand tall: the values sit a little lower, clear of the labels.
+    place(this.scoreValue, left + margin, top - 76 * k, w / 2 - margin - 60 * k);
     place(this.pumpkinsLabel, right - margin, top - 34 * k);
-    place(this.pumpkinsValue, right - margin, top - 68 * k, w / 2 - margin - 60 * k);
+    place(this.pumpkinsValue, right - margin, top - 76 * k, w / 2 - margin - 60 * k);
     // The combo hangs from a fixed top edge and grows downwards; rank and
     // cash-out follow its bottom edge every frame (see updateJuice). On narrow
     // screens it starts smaller so it has room to grow.
