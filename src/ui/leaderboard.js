@@ -116,7 +116,9 @@ export class Board {
     const row = () => ({
       rank: add(new UIText({ text: "", font: "numbers", size: 34, anchor: "right", width: 110 })),
       name: add(new UIText({ text: "", font: "body", size: 32, anchor: "left", width: 150 })),
-      score: add(new UIText({ text: "", font: "numbers", size: 34, anchor: "right", width: 240 })),
+      // Best combo in the blood red of the in-game multiplier.
+      combo: add(new UIText({ text: "", font: "numbers", size: 30, anchor: "right", width: 130, colors: ["#ffb08a", "#ff2a10"], glow: "#ff1a00" })),
+      score: add(new UIText({ text: "", font: "numbers", size: 34, anchor: "right", width: 220 })),
     });
     this.rows = Array.from({ length: ROWS }, row);
     this.you = row();
@@ -124,16 +126,18 @@ export class Board {
   }
 
   get elements() {
-    return [this.title, ...[...this.rows, this.you].flatMap((r) => [r.rank, r.name, r.score]), this.status];
+    return [this.title, ...[...this.rows, this.you].flatMap((r) => [r.rank, r.name, r.combo, r.score]), this.status];
   }
 
   layout(place, { k, top, fitWidth }) {
     place(this.title, 0, top - 100 * k);
-    const column = Math.min(440 * k, fitWidth);
+    // rank | name | best combo | score
+    const column = Math.min(520 * k, fitWidth);
     const lay = (r, y) => {
-      place(r.rank, -column / 2 + 70 * k, y, column * 0.25);
-      place(r.name, -column / 2 + 95 * k, y, column * 0.3);
-      place(r.score, column / 2, y, column * 0.45);
+      place(r.rank, -column / 2 + 0.12 * column, y, column * 0.24);
+      place(r.name, -column / 2 + 0.17 * column, y, column * 0.3);
+      place(r.combo, column * 0.12, y, column * 0.22);
+      place(r.score, column / 2, y, column * 0.36);
     };
     this.rows.forEach((r, i) => lay(r, top - 175 * k - i * 36 * k));
     lay(this.you, top - 175 * k - ROWS * 36 * k - 16 * k);
@@ -164,7 +168,8 @@ export class Board {
       r.rank.setText(`${position}.`);
       r.name.setText(entry.name);
       r.score.setText(String(entry.score));
-      for (const el of [r.rank, r.name, r.score]) {
+      r.combo.setText(entry.best_combo ? `x${entry.best_combo}` : "");
+      for (const el of [r.rank, r.name, r.combo, r.score]) {
         el.u.intensity.value = highlight ? 2.8 : 1.4;
         el.u.wobble.value = highlight ? 0.04 : 0;
         el.show({ duration: 0.5, delay: at });
