@@ -12,7 +12,14 @@ export function progress(fraction, text) {
   current = Math.max(current, Math.min(1, fraction));
   fill.style.width = `${Math.round(current * 100)}%`;
   root.setAttribute("aria-valuenow", String(Math.round(current * 100)));
-  if (text) label.textContent = text;
+  if (text && text !== label.textContent) {
+    // Quick fade between stage names.
+    label.classList.add("swap");
+    setTimeout(() => {
+      label.textContent = text;
+      label.classList.remove("swap");
+    }, 250);
+  }
 }
 
 /** Fades the loader out over the first rendered frames. */
