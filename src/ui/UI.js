@@ -476,7 +476,7 @@ export class UI {
         tweens.to(slot.u.hover, "value", over ? 0.5 : 0, 0.15);
       }
     }
-    for (const button of [this.begin, this.boardButton, this.back, this.again, this.qualityLabel, this.soundLabel]) {
+    for (const button of [this.begin, this.boardButton, this.back, this.again, this.qualityLabel, this.soundLabel, this.board.up, this.board.down]) {
       const over = !touch && button.contains(x, y, 20);
       if (over !== button.hovered) {
         button.hovered = over;
@@ -489,6 +489,8 @@ export class UI {
   pick(x, y) {
     const name = this.nameEntry.pick(x, y);
     if (name) return name;
+    const page = this.board.pick(x, y);
+    if (page) return page;
     const slot = this.slots.findIndex((c) => c.contains(x, y, 10));
     if (slot !== -1) return { type: "tool", index: slot };
     // The small LEADERBOARD button first: BEGIN's padded box sits just above it.

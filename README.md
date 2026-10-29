@@ -33,8 +33,10 @@ The combo is where high scores come from:
 The results screen (where the leaderboard will live) switches to a low camera over the pumpkin's
 shoulder while it turns to gaze at the moon, drifting slowly like an arcade attract mode.
 
-Holding the button keeps swinging (held swings never break the combo), and near misses still count, which
-helps on touch screens. Tuning lives in `COMBO` and `TOOLS` in `src/config.js`.
+Every click is one blow (holding the button does nothing), so speed and picking the right weapon are
+what score. Near misses still count, which helps on touch screens. The leaderboard keeps the top 100,
+ten per page (arrows, wheel, arrow keys or swipe), and opens on the page with your entry. Tuning lives
+in `COMBO` and `TOOLS` in `src/config.js`.
 
 ## Sound
 
