@@ -1,12 +1,14 @@
 // All audio is synthesised with Web Audio: no files to download.
 //
-// - Music: a creepy music-box loop in A harmonic minor over a bass and a soft
-//   pad. Combo heat adds hats, kick and snare and opens the filter.
-// - Hits: one body per weapon plus a wet pumpkin "splat"; every hit in a combo
-//   also rings a note that climbs the A minor pentatonic (the Peggle/Balatro
-//   hook). Rank ups, switches, cash-outs and broken combos have their own cues.
+// - Music: a low, driving loop for venting: a distorted bass riff in A minor
+//   over a heavy kick and a dark drone. Combo heat brings in double kicks, a
+//   snare, distorted power-chord stabs and opens the filter.
+// - Hits: a short, clean "thock" (click transient + falling low body), a little
+//   different per weapon; every hit in a combo also rings a low note that climbs
+//   the A minor pentatonic (the Peggle/Balatro hook). Rank ups, switches,
+//   cash-outs and broken combos have their own cues.
 
-const BPM = 100;
+const BPM = 112;
 const STEP = 60 / BPM / 4; // a sixteenth
 const LOOKAHEAD = 0.12;
 const STORAGE_KEY = "smash-your-pumpkin:sound";
@@ -14,16 +16,13 @@ const STORAGE_KEY = "smash-your-pumpkin:sound";
 const A4 = 440;
 const hz = (semitones) => A4 * Math.pow(2, semitones / 12);
 
-// Am, F, Dm, E: the E major chord's G# gives the harmonic-minor creep.
-const CHORDS = [
-  [-12, -9, -5], // A3 C4 E4
-  [-16, -12, -9], // F3 A3 C4
-  [-19, -16, -12], // D3 F3 A3
-  [-17, -13, -10], // E3 G#3 B3
-];
-// Music-box arpeggio over the chord tones (index into tones across octaves).
-const ARP = [0, 2, 4, 2, 3, 5, 4, 2, 0, 2, 4, 5, 6, 5, 4, 2];
+// Riff roots, one bar each: A, A, F, E (semitones from A4; A1 is -36).
+const ROOTS = [-36, -36, -40, -41];
+// Sixteenth riff: 0 = root, 12 = octave, 1 = flat second (the menace), null = rest.
+const RIFF = [0, null, 0, 0, 12, null, 0, 1, 0, null, 0, 0, 12, 0, 1, 0];
 const PENTATONIC = [0, 3, 5, 7, 10];
+// Combo notes start at A2 and climb from there.
+const COMBO_BASE = -24;
 
 export class Sound {
   constructor() {
@@ -54,7 +53,7 @@ export class Sound {
     compressor.threshold.value = -14;
     compressor.ratio.value = 4;
     this.master = ctx.createGain();
-    this.master.gain.value = this.enabled ? 0.9 : 0;
+    this.master.gain.value = this.enabled ? 0.75 : 0;
     this.master.connect(compressor).connect(ctx.destination);
 
     this.sfx = ctx.createGain();
@@ -64,10 +63,26 @@ export class Sound {
     // Music bus with a lowpass that opens as the combo heats up.
     this.musicFilter = ctx.createBiquadFilter();
     this.musicFilter.type = "lowpass";
-    this.musicFilter.frequency.value = 1800;
+    this.musicFilter.frequency.value = 900;
     this.music = ctx.createGain();
-    this.music.gain.value = 0.32;
+    this.music.gain.value = 0.34;
     this.music.connect(this.musicFilter).connect(this.master);
+
+    // Grit for the bass riff and the stabs: soft-clipping into a lowpass.
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < curve.length; i++) {
+      const x = (i / (curve.length - 1)) * 2 - 1;
+      curve[i] = Math.tanh(x * 4);
+    }
+    shaper.curve = curve;
+    shaper.oversample = "2x";
+    const tone = ctx.createBiquadFilter();
+    tone.type = "lowpass";
+    tone.frequency.value = 1400;
+    this.dirt = ctx.createGain();
+    this.dirt.gain.value = 0.6;
+    this.dirt.connect(shaper).connect(tone).connect(this.music);
 
     // Echo for the music box and the combo notes.
     this.echo = ctx.createDelay(1);
@@ -99,7 +114,7 @@ export class Sound {
     this.enabled = !this.enabled;
     writeEnabled(this.enabled);
     if (!this.ctx) return this.enabled;
-    this.master.gain.setTargetAtTime(this.enabled ? 0.9 : 0, this.now, 0.05);
+    this.master.gain.setTargetAtTime(this.enabled ? 0.75 : 0, this.now, 0.05);
     if (this.enabled) {
       this.ctx.resume();
       this.startMusic();
@@ -111,7 +126,7 @@ export class Sound {
   setHeat(heat) {
     if (Math.abs(heat - this.heat) < 0.01) return;
     this.heat = heat;
-    if (this.ctx) this.musicFilter.frequency.setTargetAtTime(1800 + heat * 6000, this.now, 0.3);
+    if (this.ctx) this.musicFilter.frequency.setTargetAtTime(900 + heat * 4500, this.now, 0.3);
   }
 
   // --- Voices -------------------------------------------------------------------
@@ -153,32 +168,29 @@ export class Sound {
 
   // --- Game cues ----------------------------------------------------------------
 
-  /** Impact on swing. `onPumpkin` adds the wet splat. */
+  /**
+   * Impact on swing: a short, clean "thock". A tiny click for the attack, then
+   * a low sine body that drops in pitch; each weapon shifts the weight. The
+   * splat on pumpkin is kept short and dark so repeated hits stay crisp.
+   */
   hit(toolId, { onPumpkin = true, t = this.now } = {}) {
     if (!this.ready) return;
-    if (toolId === "fist") {
-      this.tone({ freq: 170, to: 55, dur: 0.09, gain: 0.55, t });
-      this.noise({ freq: 1400, dur: 0.04, gain: 0.35, q: 0.8, t });
-    } else if (toolId === "mallet") {
-      this.tone({ freq: 120, to: 32, dur: 0.22, gain: 0.8, t });
-      this.tone({ type: "triangle", freq: 70, to: 40, dur: 0.18, gain: 0.35, t });
-      this.noise({ filter: "lowpass", freq: 900, to: 200, dur: 0.18, gain: 0.5, t });
-    } else {
-      // Axe: a bright metallic shing over a short chop.
-      this.noise({ filter: "highpass", freq: 5000, to: 2500, dur: 0.12, gain: 0.3, t });
-      this.tone({ type: "square", freq: 1650, to: 1500, dur: 0.07, gain: 0.05, t });
-      this.tone({ freq: 210, to: 70, dur: 0.08, gain: 0.45, t });
-    }
-    if (onPumpkin) this.noise({ freq: 950, to: 260, q: 2.5, dur: 0.13, gain: 0.4, t: t + 0.01 });
+    const body = { fist: [190, 70, 0.08, 0.7], mallet: [130, 42, 0.16, 0.95], axe: [240, 90, 0.07, 0.6] }[toolId];
+    const [from, to, dur, gain] = body ?? [180, 60, 0.1, 0.7];
+    this.noise({ filter: "highpass", freq: 3500, dur: 0.012, gain: 0.35, t });
+    this.tone({ freq: from, to, dur, gain, attack: 0.002, t });
+    this.tone({ type: "triangle", freq: from * 0.5, to: to * 0.5, dur: dur * 1.2, gain: gain * 0.35, attack: 0.002, t });
+    if (toolId === "axe") this.tone({ type: "triangle", freq: 1200, to: 1100, dur: 0.05, gain: 0.04, t });
+    if (onPumpkin) this.noise({ filter: "lowpass", freq: 900, to: 250, dur: 0.07, gain: 0.25, t: t + 0.008 });
   }
 
   /** Pumpkin bursts open. */
   burst(t = this.now) {
     if (!this.ready) return;
-    this.tone({ freq: 90, to: 28, dur: 0.4, gain: 0.7, t });
-    this.noise({ filter: "lowpass", freq: 2400, to: 180, dur: 0.38, gain: 0.55, t });
-    this.noise({ freq: 700, to: 200, q: 3, dur: 0.25, gain: 0.45, t: t + 0.03 });
-    for (let i = 0; i < 4; i++) this.noise({ freq: 1500 + Math.random() * 1500, q: 6, dur: 0.05, gain: 0.15, t: t + 0.06 + i * 0.045 });
+    this.tone({ freq: 85, to: 26, dur: 0.45, gain: 0.85, attack: 0.002, t });
+    this.tone({ type: "triangle", freq: 55, to: 30, dur: 0.4, gain: 0.35, t });
+    this.noise({ filter: "lowpass", freq: 1600, to: 150, dur: 0.32, gain: 0.5, t });
+    for (let i = 0; i < 3; i++) this.noise({ filter: "lowpass", freq: 900, dur: 0.04, gain: 0.18, t: t + 0.05 + i * 0.05 });
   }
 
   /** A shard ground to dust: a little sparkle. */
@@ -193,20 +205,20 @@ export class Sound {
     this.noise({ freq: 600, to: 1800, q: 1.2, dur: 0.16, gain: 0.12, t });
   }
 
-  /** Every combo step rings the next note up the pentatonic scale. */
+  /** Every combo step rings the next note up the pentatonic scale, low and round. */
   comboUp(combo, { rankUp = false, switched = false, t = this.now } = {}) {
     if (!this.ready || combo < 2) return;
     const i = Math.min(combo - 2, 14);
-    const semis = PENTATONIC[i % 5] + 12 * Math.floor(i / 5);
-    this.tone({ type: "triangle", freq: hz(semis), dur: 0.16, gain: 0.16, t, echo: 0.25 });
-    this.tone({ type: "sine", freq: hz(semis + 12), dur: 0.08, gain: 0.05, t });
+    const semis = COMBO_BASE + PENTATONIC[i % 5] + 12 * Math.floor(i / 5);
+    this.tone({ type: "triangle", freq: hz(semis), dur: 0.22, gain: 0.3, t, echo: 0.2 });
+    this.tone({ type: "sine", freq: hz(semis + 12), dur: 0.12, gain: 0.08, t });
     if (switched) {
       this.tone({ type: "square", freq: hz(semis + 7), dur: 0.07, gain: 0.05, t: t + 0.05 });
       this.tone({ type: "square", freq: hz(semis + 12), dur: 0.1, gain: 0.05, t: t + 0.1 });
     }
     if (rankUp) {
       [0, 3, 7, 12, 15].forEach((s, n) =>
-        this.tone({ type: "square", freq: hz(semis + s), dur: 0.22, gain: 0.06, t: t + 0.06 + n * 0.05, echo: 0.4 }),
+        this.tone({ type: "square", freq: hz(semis + 12 + s), dur: 0.22, gain: 0.05, t: t + 0.06 + n * 0.05, echo: 0.4 }),
       );
       this.noise({ filter: "highpass", freq: 2000, to: 8000, dur: 0.35, gain: 0.08, t });
     }
@@ -217,11 +229,13 @@ export class Sound {
     if (!this.ready) return;
     const notes = Math.min(4 + Math.floor(combo / 4), 14);
     for (let n = 0; n < notes; n++) {
-      const semis = PENTATONIC[n % 5] + 12 * Math.floor(n / 5);
-      this.tone({ type: "square", freq: hz(semis), dur: 0.12, gain: 0.05, t: t + n * 0.045, echo: 0.2 });
+      const semis = COMBO_BASE + PENTATONIC[n % 5] + 12 * Math.floor(n / 5);
+      this.tone({ type: "triangle", freq: hz(semis), dur: 0.14, gain: 0.2, t: t + n * 0.045, echo: 0.2 });
     }
+    // Lands on a big low power chord through the grit.
     const end = t + notes * 0.045;
-    [0, 3, 7, 12].forEach((s) => this.tone({ type: "triangle", freq: hz(s + 12), dur: 0.7, gain: 0.08, t: end, echo: 0.4 }));
+    [0, 7, 12].forEach((s) => this.tone({ type: "sawtooth", freq: hz(-24 + s), dur: 0.9, gain: 0.12, t: end, out: this.dirt }));
+    this.tone({ freq: 70, to: 30, dur: 0.5, gain: 0.6, t: end });
   }
 
   /** Combo lost: a sad descending wah-wah. */
@@ -288,31 +302,39 @@ export class Sound {
 
   /** One sixteenth of the loop at time `t` (also used for offline renders). */
   playStep(step, t) {
-    const bar = Math.floor(step / 16) % CHORDS.length;
+    const root = ROOTS[Math.floor(step / 16) % ROOTS.length];
     const s = step % 16;
-    const chord = CHORDS[bar];
     const heat = this.heat;
     const out = this.music;
 
     if (s === 0) {
-      // Pad: a soft, slowly swelling chord for the whole bar.
-      chord.forEach((n) =>
-        this.tone({ type: "sawtooth", freq: hz(n), dur: STEP * 16, gain: 0.025, attack: STEP * 4, out, t }),
+      // Dark drone under everything: root and fifth, slow swell.
+      [root + 12, root + 19].forEach((n) =>
+        this.tone({ type: "sawtooth", freq: hz(n), dur: STEP * 16, gain: 0.03, attack: STEP * 6, out, t }),
       );
     }
-    if (s === 0 || s === 8 || (heat > 0.5 && s === 14)) {
-      this.tone({ type: "triangle", freq: hz(chord[0] - 12), dur: STEP * 6, gain: 0.32, out, t });
+
+    // Distorted bass riff, chugging harder as the combo heats up.
+    const note = RIFF[s];
+    if (note !== null && (s % 2 === 0 || heat > 0.25)) {
+      this.tone({ type: "sawtooth", freq: hz(root + 12 + note), dur: STEP * 0.9, gain: 0.22, attack: 0.003, out: this.dirt, t });
+      this.tone({ type: "sine", freq: hz(root + note), dur: STEP * 0.9, gain: 0.25, attack: 0.003, out, t });
     }
-    // Music box: eighths when calm, sixteenths once the combo heats up.
-    if (s % 2 === 0 || heat > 0.3) {
-      const index = ARP[s];
-      const note = chord[index % 3] + 12 * (Math.floor(index / 3) + 1);
-      this.tone({ type: "triangle", freq: hz(note), dur: STEP * 3, gain: s % 2 ? 0.05 : 0.09, out, echo: 0.35, t });
-      this.tone({ type: "sine", freq: hz(note) * 3, dur: STEP, gain: 0.012, out, t });
+
+    // Heavy kick: on the beat, doubled with heat.
+    const kick = s % 4 === 0 || (heat > 0.4 && (s === 3 || s === 11)) || (heat > 0.75 && s % 2 === 0);
+    if (kick) this.tone({ freq: 120, to: 38, dur: 0.18, gain: 0.6, attack: 0.002, out, t });
+
+    if (heat > 0.2 && (s === 4 || s === 12)) {
+      this.noise({ freq: 1400, q: 0.8, dur: 0.14, gain: 0.25, out, t });
+      this.tone({ type: "triangle", freq: 190, to: 150, dur: 0.08, gain: 0.15, out, t });
     }
-    if (heat > 0.12 && s % 2 === 1) this.noise({ filter: "highpass", freq: 7000, dur: 0.03, gain: 0.05 + heat * 0.06, out, t });
-    if (heat > 0.35 && (s === 0 || s === 8 || s === 10)) this.tone({ freq: 140, to: 40, dur: 0.16, gain: 0.5, out, t });
-    if (heat > 0.6 && (s === 4 || s === 12)) this.noise({ freq: 1800, q: 0.7, dur: 0.12, gain: 0.22, out, t });
+    if (heat > 0.1 && s % 2 === 1) this.noise({ filter: "highpass", freq: 6500, dur: 0.025, gain: 0.03 + heat * 0.04, out, t });
+
+    // Power-chord stabs at high heat.
+    if (heat > 0.55 && (s === 0 || s === 6 || s === 10)) {
+      [0, 7, 12].forEach((n) => this.tone({ type: "sawtooth", freq: hz(root + 24 + n), dur: STEP * 1.6, gain: 0.07, out: this.dirt, t }));
+    }
   }
 }
 

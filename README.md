@@ -40,12 +40,15 @@ helps on touch screens. Tuning lives in `COMBO` and `TOOLS` in `src/config.js`.
 
 Everything is synthesised with Web Audio in `src/audio/Sound.js`, so there are no audio files:
 
-- **Music**: a creepy music-box loop in A harmonic minor (Am, F, Dm, E) over a bass and a pad. As the
-  combo heats up, hats, kick and snare come in and the filter opens.
-- **Hits**: a different body for fist, mallet and axe, plus a wet splat on pumpkin. A pumpkin bursting
-  gets a crunch and a dust grind gets a sparkle.
-- **Combo**: every hit in a combo rings the next note up the A minor pentatonic. Rank ups add an
-  arpeggio, switching weapon adds a bling, a cash-out is a cascade of coins and a broken combo is a sad wah-wah.
+- **Music**: a low, driving loop to vent on: a distorted bass riff in A minor over a heavy kick and a
+  dark drone. As the combo heats up, double kicks, a snare and distorted power-chord stabs come in and
+  the filter opens.
+- **Hits**: a short, clean "thock" (click transient plus a falling low body), weighted differently for
+  fist, mallet and axe, with a short dark splat on pumpkin. A pumpkin bursting gets a deep crunch and a
+  dust grind gets a sparkle.
+- **Combo**: every hit in a combo rings the next note up the A minor pentatonic, starting low at A2.
+  Rank ups add an arpeggio, switching weapon adds a bling, a cash-out is a cascade that lands on a low
+  power chord and a broken combo is a sad wah-wah.
 - **Round**: stingers for READY / SMASH / TIME'S UP and a clock tick in the last ten seconds.
 
 Audio starts on the first click or key press (browser autoplay rules). **M**, or the label in the
@@ -64,7 +67,7 @@ textures and low-poly props (`src/core/retro.js`), plus dithering and grain on t
 
 ## Credits
 
-- Title font: [Squealer](https://typodermicfonts.com/) by Typodermic Fonts (Ray Larabie), released into the
+- Title font: [Snidely](https://typodermicfonts.com/) by Typodermic Fonts (Ray Larabie), released into the
   public domain (CC0) and bundled in `public/fonts/`.
 - Number and UI fonts: Jacquard 24 and Pixelify Sans from Google Fonts (SIL Open Font License).
 

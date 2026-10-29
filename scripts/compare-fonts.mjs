@@ -1,7 +1,8 @@
 // Renders the same screens with each candidate title font, to compare them in
-// the real scene. Put the font files in public/fonts/ (otf, ttf, woff, woff2):
+// the real scene: the font files in public/fonts/ (otf, ttf, woff, woff2) and
+// any Google Fonts families passed with --google:
 //
-//   node scripts/compare-fonts.mjs [out-dir]     (needs Playwright with Chromium)
+//   node scripts/compare-fonts.mjs [out-dir] [--google "Family A|Family B"]
 //
 // Writes <font>-title.png, <font>-combo.png and <font>-board.png per font.
 
@@ -14,10 +15,17 @@ import { createServer } from "vite";
 const { chromium } = createRequire(import.meta.url)("playwright");
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const out = process.argv[2] ?? join(root, "font-previews");
+const args = process.argv.slice(2);
+const googleAt = args.indexOf("--google");
+const google = googleAt === -1 ? [] : args.splice(googleAt, 2)[1].split("|");
+const out = args[0] ?? join(root, "font-previews");
 await mkdir(out, { recursive: true });
-const fonts = (await readdir(join(root, "public", "fonts"))).filter((f) => /\.(otf|ttf|woff2?)$/i.test(f));
-if (fonts.length === 0) throw new Error("No fonts in public/fonts/");
+const files = (await readdir(join(root, "public", "fonts"))).filter((f) => /\.(otf|ttf|woff2?)$/i.test(f));
+const fonts = [
+  ...files.map((f) => ({ name: f.replace(/\.[^.]+$/, ""), query: `font=${encodeURIComponent(f)}` })),
+  ...google.map((g) => ({ name: g.toLowerCase().replace(/ /g, "-"), query: `gfont=${encodeURIComponent(g)}` })),
+];
+if (fonts.length === 0) throw new Error("No fonts in public/fonts/ and no --google families");
 
 const server = await createServer({ root, server: { port: 0 }, logLevel: "error" });
 await server.listen();
@@ -26,12 +34,11 @@ const browser = await chromium.launch({
   args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
 
-for (const file of fonts) {
-  const name = file.replace(/\.[^.]+$/, "");
+for (const { name, query } of fonts) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   page.on("console", (m) => m.type() === "warning" && /fonts/.test(m.text()) && console.warn(m.text()));
   await page.addInitScript(() => localStorage.setItem("smash-your-pumpkin:quality", "medium"));
-  await page.goto(`${base}?font=${encodeURIComponent(file)}`);
+  await page.goto(`${base}?${query}`);
   await page.waitForFunction(() => window.game?.state === "title" && game.ui.begin.u.reveal.value > 0.99, null, { timeout: 300000 });
   await page.screenshot({ path: join(out, `${name}-title.png`) });
 
