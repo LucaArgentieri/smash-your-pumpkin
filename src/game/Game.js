@@ -777,11 +777,26 @@ async function loadFonts() {
 }
 
 /**
- * Dev only: ?font=<file> swaps the title face for public/fonts/<file>, to try
- * candidate fonts in the real scene (see scripts/compare-fonts.mjs).
+ * Dev only: ?font=<file> swaps the title face for public/fonts/<file> (or
+ * ?gfont=<family> for a Google font), to try candidate fonts in the real scene
+ * (see scripts/compare-fonts.mjs).
  */
 async function previewTitleFont() {
-  const file = import.meta.env.DEV && new URLSearchParams(location.search).get("font");
+  const params = new URLSearchParams(location.search);
+  // ?gfont=<Google Fonts family> previews a Google font the same way.
+  const google = import.meta.env.DEV && params.get("gfont");
+  if (google) {
+    const link = Object.assign(document.createElement("link"), {
+      rel: "stylesheet",
+      href: `https://fonts.googleapis.com/css2?family=${google.replace(/ /g, "+")}&display=block`,
+    });
+    document.head.append(link);
+    await new Promise((resolve) => (link.onload = link.onerror = resolve));
+    await document.fonts.load(`400 32px "${google}"`);
+    FONTS.title = { family: `"${google}", serif`, weight: 400 };
+    return;
+  }
+  const file = import.meta.env.DEV && params.get("font");
   if (!file) return;
   try {
     const face = new FontFace("Preview Title", `url(${import.meta.env.BASE_URL}fonts/${file})`);
