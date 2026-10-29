@@ -56,6 +56,10 @@ export class UI {
     this.comboMult.heatGain = 1.8;
     this.comboRank.heatGain = 0.8;
     for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) el.sway = 0.06;
+    // What the combo would pay if banked now: the reason to keep it alive.
+    this.bank = add(new UIText({ text: "", font: "numbers", size: 40, anchor: "top", width: 420, colors: ["#fff1c9", "#ffb347"], glow: "#ff7a1a" }));
+    this.bank.heatGain = 0.9;
+    this.bank.sway = 0.03;
     this.comboParts = [this.comboCount, this.comboMult, this.comboRank];
     this.heat = 0;
     this.displayScore = 0;
@@ -66,7 +70,8 @@ export class UI {
 
     // Results.
     this.resultsTitle = add(new UIText({ text: TEXT.results, font: "title", size: 72, width: 980, wobble: 0.01 }));
-    this.rows = [TEXT.pumpkins, TEXT.shards, TEXT.bestCombo].map((label) => ({
+    // Where the score came from: hits, banked combos, plus the run's stats.
+    this.rows = [TEXT.smashing, TEXT.banked, TEXT.pumpkins, TEXT.bestCombo].map((label) => ({
       label: add(new UIText({ text: label, size: 28, anchor: "left", width: 300, ...VIOLET, backdrop: "rgba(8, 3, 12, 0.6)" })),
       value: add(new UIText({ text: "0", font: "numbers", size: 46, anchor: "right", width: 220 })),
     }));
@@ -158,7 +163,8 @@ export class UI {
     place(this.comboMult, 8 * k, top - 135 * k, w / 2 - 6);
     place(this.comboRank, 0, top - 210 * k);
     place(this.cashOut, 0, top - 260 * k);
-    for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) {
+    place(this.bank, 0, top - 260 * k);
+    for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut, this.bank]) {
       el.layoutScale = Math.min(el.maxScale, k * comboBase);
       this.heatScale(el);
     }
@@ -168,12 +174,12 @@ export class UI {
     place(this.resultsTitle, 0, top - 100 * k);
     const column = Math.min(520 * k, fitWidth);
     this.rows.forEach((row, i) => {
-      const y = top - 185 * k - i * 50 * k;
+      const y = top - 172 * k - i * 40 * k;
       place(row.label, -column / 2, y, column * 0.6);
       place(row.value, column / 2, y, column * 0.4);
     });
-    place(this.finalScore, 0, top - 345 * k);
-    place(this.bestLine, 0, top - 420 * k);
+    place(this.finalScore, 0, top - 358 * k);
+    place(this.bestLine, 0, top - 425 * k);
     place(this.recordLine, 0, top - 452 * k);
     place(this.again, 0, bottom + 120 * k);
     this.nameEntry.layout(place, { k, bottom });
@@ -289,9 +295,9 @@ export class UI {
   }
 
   /** `askName`: show the name entry (leaderboard online) instead of AGAIN. */
-  showResults({ score, pumpkins, shards, bestCombo, best, isBest, comboRecord, isComboRecord, askName = null }) {
+  showResults({ score, pumpkins, smashing, banked, bestCombo, best, isBest, comboRecord, isComboRecord, askName = null }) {
     this.resultsTitle.show({ duration: 1.4, delay: 0.1 });
-    const values = [pumpkins, shards, `x${bestCombo}`];
+    const values = [smashing, banked, pumpkins, `x${bestCombo}`];
     this.rows.forEach((row, i) => {
       row.value.setText(String(values[i]));
       row.label.show({ duration: 0.6, delay: 0.9 + i * 0.25 });
@@ -406,9 +412,20 @@ export class UI {
     }
   }
 
+  /** Live value of the combo if banked now (shown once it is worth banking). */
+  setBank(value) {
+    if (!value) return this.bank.hide({ duration: 0.2 });
+    if (this.bank.u.reveal.value < 1) this.bank.show({ duration: 0.25 });
+    this.bank.setText(`${TEXT.bank} ${value}`);
+    this.heatScale(this.bank);
+    this.bank.u.intensity.value = 1.6 + this.heat * 1.6;
+    this.punch(this.bank, 0.4 + this.heat * 0.6);
+  }
+
   hideCombo() {
     this.heat = 0;
     for (const el of this.comboParts) el.hide({ duration: 0.4 });
+    this.bank.hide({ duration: 0.3 });
   }
 
   /** Big line under the combo when it is banked (or lost), sized by the combo. */
@@ -438,7 +455,8 @@ export class UI {
     const y = (v.y * this.h) / 2 + 30 * this.k;
 
     p.setText(text);
-    p.baseScale = this.k * (blood ? 1.15 : 0.9) * (1 + this.heat * 2);
+    // Numbers swell with combo heat; word labels stay readable and grow less.
+    p.baseScale = this.k * (blood ? 1.15 : 0.9) * (1 + this.heat * (kind === "words" ? 0.4 : 2)) * (kind === "words" ? 0.8 : 1);
     p.punch = 0.5 + this.heat;
     p.rotation.z = (Math.random() - 0.5) * 0.2 * (0.5 + this.heat);
     p.u.intensity.value = (blood ? 2.4 : 1.7) + this.heat * 2;
@@ -556,7 +574,8 @@ export class UI {
     const comboBottom = this.comboCount.home.y - Math.max(this.comboCount.scale.y, this.comboMult.scale.y) * 0.8;
     this.comboRank.home.y = comboBottom;
     this.cashOut.home.y = this.comboRank.u.reveal.value > 0.01 ? comboBottom - this.comboRank.scale.y * 0.85 : comboBottom;
-    for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut]) {
+    this.bank.home.y = comboBottom - this.comboRank.scale.y * 0.85;
+    for (const el of [this.comboCount, this.comboMult, this.comboRank, this.cashOut, this.bank]) {
       const heat = el === this.cashOut ? (el.shake ?? 0) : this.heat;
       el.rotation.z = Math.sin(t * (2 + heat * 4) + el.u.seed.value) * el.sway * (0.3 + heat * 1.4);
       // Past half heat the numbers start to tremble.
