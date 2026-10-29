@@ -143,4 +143,5 @@ export const TEXT = {
   boardOffline: "the spirits are silent. no leaderboard tonight.",
   boardEmpty: "no one has smashed here yet. be the first.",
   quality: "QUALITY",
+  sound: "SOUND",
 };

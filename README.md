@@ -36,6 +36,21 @@ shoulder while it turns to gaze at the moon, drifting slowly like an arcade attr
 Holding the button keeps swinging (held swings never break the combo), and near misses still count, which
 helps on touch screens. Tuning lives in `COMBO` and `TOOLS` in `src/config.js`.
 
+## Sound
+
+Everything is synthesised with Web Audio in `src/audio/Sound.js`, so there are no audio files:
+
+- **Music**: a creepy music-box loop in A harmonic minor (Am, F, Dm, E) over a bass and a pad. As the
+  combo heats up, hats, kick and snare come in and the filter opens.
+- **Hits**: a different body for fist, mallet and axe, plus a wet splat on pumpkin. A pumpkin bursting
+  gets a crunch and a dust grind gets a sparkle.
+- **Combo**: every hit in a combo rings the next note up the A minor pentatonic. Rank ups add an
+  arpeggio, switching weapon adds a bling, a cash-out is a cascade of coins and a broken combo is a sad wah-wah.
+- **Round**: stingers for READY / SMASH / TIME'S UP and a clock tick in the last ten seconds.
+
+Audio starts on the first click or key press (browser autoplay rules). **M**, or the label in the
+top-right corner of the title and results screens, toggles it, and the choice is remembered.
+
 ## Look
 
 The key art is an homage to the [Inscryption](https://www.inscryption.com/) cover: the game's own scene in its

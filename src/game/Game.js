@@ -13,6 +13,7 @@ import { loadPumpkinModel } from "../pumpkins/models.js";
 import { UI } from "../ui/UI.js";
 import { Cabin, MOON_POSITION } from "../world/Cabin.js";
 import { Destruction } from "./Destruction.js";
+import { Sound } from "../audio/Sound.js";
 import { fetchTop, lastName, leaderboardEnabled, rememberName, submitScore } from "./leaderboard.js";
 
 const PUMPKIN_SPOT = new THREE.Vector3(0, 0, 0.15);
@@ -90,6 +91,8 @@ export class Game {
     this.bindEvents();
     this.onResize();
     this.ui.setQualityLabel(this.quality.label);
+    this.sound = new Sound();
+    this.ui.setSoundLabel(this.sound.enabled);
     this.ui.showLoading();
     this.renderer.renderer.setAnimationLoop((t) => this.frame(t));
 
@@ -182,6 +185,7 @@ export class Game {
     window.addEventListener("resize", () => this.onResize());
     canvas.addEventListener("pointermove", (e) => this.onPointerMove(e));
     canvas.addEventListener("pointerdown", (e) => {
+      this.sound.unlock();
       this.onPointerMove(e);
       this.onPointerDown();
     });
@@ -198,7 +202,10 @@ export class Game {
       },
       { passive: true },
     );
-    window.addEventListener("keydown", (e) => this.onKey(e));
+    window.addEventListener("keydown", (e) => {
+      this.sound.unlock();
+      this.onKey(e);
+    });
   }
 
   onPointerMove(e) {
@@ -214,6 +221,7 @@ export class Game {
     const action = this.ui.pick(x, y);
     if (action?.type === "tool") return this.selectTool(action.index);
     if (action?.type === "quality") return this.quality.cycle();
+    if (action?.type === "sound") return this.toggleSound();
     if (action?.type === "begin" && this.state === "title") return this.beginRound();
     if (action?.type === "again" && this.state === "results") return this.beginRound();
     if (this.state === "name" && action?.type.startsWith("name")) return this.onNameAction(action);
@@ -229,6 +237,7 @@ export class Game {
     const index = ["Digit1", "Digit2", "Digit3"].indexOf(e.code);
     if (index !== -1) this.selectTool(index);
     if (e.code === "KeyQ" && this.state !== "loading") this.quality.cycle();
+    if (e.code === "KeyM") this.toggleSound();
     if (e.code === "Space" || e.code === "Enter") {
       if (this.state === "title" && this.ui.begin.shown) this.beginRound();
       if (this.state === "results" && this.ui.again.shown) this.beginRound();
@@ -239,6 +248,11 @@ export class Game {
     if (index === this.tool && this.state === "playing") return;
     this.tool = index;
     this.ui.select(index);
+    this.sound.select(index);
+  }
+
+  toggleSound() {
+    this.ui.setSoundLabel(this.sound.toggle());
   }
 
   // --- Round flow ---------------------------------------------------------------
@@ -260,7 +274,9 @@ export class Game {
     this.ui.setTimer(GAME.duration);
     this.ui.showHUD();
 
+    this.sound.stinger("ready");
     await this.ui.announce(TEXT.ready, { hold: 0.45 });
+    this.sound.stinger("go");
     this.state = "playing";
     this.ui.announce(TEXT.go, { hold: 0.15, style: "blood" });
   }
@@ -272,6 +288,8 @@ export class Game {
   onQualityChange(preset) {
     this.renderer.setQuality(preset);
     this.ui.setQualityLabel(this.quality.label);
+    this.sound = new Sound();
+    this.ui.setSoundLabel(this.sound.enabled);
     if (this.state === "playing" || this.state === "intro") this.pendingQuality = preset;
     else this.cabin.setQuality(preset);
   }
@@ -284,6 +302,7 @@ export class Game {
       this.cabin.setQuality(this.pendingQuality);
       this.pendingQuality = null;
     }
+    this.sound.stinger("end");
     await this.ui.announce(TEXT.timeUp, { hold: 0.9, style: "blood" });
     this.ui.hideHUD();
     this.ui.setPlaying(false);
@@ -319,6 +338,7 @@ export class Game {
 
   onNameAction(action) {
     const entry = this.ui.nameEntry;
+    this.sound.blip();
     if (action.type === "nameUp") entry.cycle(action.index, 1);
     if (action.type === "nameDown") entry.cycle(action.index, -1);
     if (action.type === "nameLetter") entry.select(action.index);
@@ -404,6 +424,7 @@ export class Game {
     const targets = this.destruction.targets(this.pumpkin);
     const hit = this.raycaster.intersectObjects(targets, false)[0] ?? this.nearMiss(targets);
     if (hit || deliberate) this.ui.strike();
+    if (!hit && deliberate) this.sound.whiff();
     if (!hit) {
       // A deliberate swing at nothing breaks the combo (no cash-out). Held
       // swings sweeping over empty table are only throttled.
@@ -422,9 +443,13 @@ export class Game {
     this.physics.hitStop(tool.hitStop);
 
     const pumpkin = hit.object.userData.pumpkin;
+    // Sound on the swing, not when the fracture comes back from the worker.
+    this.sound.hit(tool.id, { onPumpkin: Boolean(pumpkin) || hit.object.userData.generation < 99 });
     const direction = this.raycaster.ray.direction.clone();
     const result = await this.destruction.hit(hit.object, hit.point, direction, tool);
 
+    if (result.type === "break") this.sound.burst();
+    if (result.type === "dust") this.sound.dust();
     if (result.type === "break" && this.pumpkin === pumpkin) {
       this.pumpkin = null;
       tweens.after(GAME.nextPumpkinDelay, () => this.spawnPumpkin());
@@ -476,7 +501,8 @@ export class Game {
     const alive = this.combo > 0;
     const before = this.combo;
     this.combo += 1;
-    if (alive && this.lastTool !== null && toolIndex !== this.lastTool) {
+    const switched = alive && this.lastTool !== null && toolIndex !== this.lastTool;
+    if (switched) {
       this.combo += COMBO.switchBonus;
       this.ui.popup(`${TEXT.switched} +${COMBO.switchBonus}`, point, this.camera);
     }
@@ -485,7 +511,9 @@ export class Game {
     this.renderer.uniforms.fireTint.value.setRGB(1, 1, 1);
     this.bestCombo = Math.max(this.bestCombo, this.combo);
     const rank = this.comboRank();
-    this.ui.setCombo(this.combo, rank, this.comboMultiplier(), { rankUp: rank !== this.comboRank(before) });
+    const rankUp = rank !== this.comboRank(before);
+    this.ui.setCombo(this.combo, rank, this.comboMultiplier(), { rankUp });
+    this.sound.comboUp(this.combo, { rankUp, switched });
     return this.comboMultiplier();
   }
 
@@ -509,9 +537,11 @@ export class Game {
     u.fireLeft.value = cashOut ? 0.15 : 0.5;
     u.fireTint.value.setRGB(...(cashOut ? [1, 1, 1] : [0.55, 0.12, 0.25]));
     if (!cashOut) {
+      this.sound.broken();
       this.ui.showCashOut(`${TEXT.broken} · x${combo}`, { broken: true, combo });
       return;
     }
+    this.sound.cashOut(combo);
     const bonus = Math.round(combo * combo * COMBO.cashOut);
     this.score += bonus;
     this.ui.setScore(this.score);
@@ -588,11 +618,15 @@ export class Game {
         if (left <= 0) this.endCombo({ cashOut: true });
       }
       this.timeLeft -= dt;
-      this.ui.setTimer(Math.max(0, Math.ceil(this.timeLeft)));
+      const seconds = Math.max(0, Math.ceil(this.timeLeft));
+      if (seconds !== this.lastSecond && seconds <= 10 && seconds > 0) this.sound.tick(seconds);
+      this.lastSecond = seconds;
+      this.ui.setTimer(seconds);
       if (this.timeLeft <= 0) this.endRound();
     }
 
     this.updateFire(dt);
+    this.sound.setHeat(this.state === "playing" && this.combo >= 2 ? this.ui.heatFor(this.combo) : 0);
     this.updateCamera(dt);
     const flash = this.renderer.uniforms.flash;
     flash.value = Math.max(0, flash.value - dt * 3);
