@@ -103,11 +103,12 @@ export const PALETTE = {
   ink: "#1a0d0a",
 };
 
-// Titles and words: New Rocker, a vintage blackletter with a carved, rock
-// poster feel. Numbers keep the pixel blackletter, which reads well for digits.
+// Titles and words: Squealer by Typodermic (public domain, public/fonts/), a
+// condensed horror face. Numbers keep the pixel blackletter, which reads well
+// for digits.
 export const FONTS = {
-  title: { family: '"New Rocker", serif', weight: 400 },
-  numbers: { family: '"Jacquard 24", "New Rocker", serif', weight: 400 },
+  title: { family: '"Squealer", serif', weight: 400 },
+  numbers: { family: '"Jacquard 24", "Squealer", serif', weight: 400 },
   body: { family: '"Pixelify Sans", monospace', weight: 400 },
 };
 

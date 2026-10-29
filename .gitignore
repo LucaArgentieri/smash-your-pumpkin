@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Font candidates and their previews (scripts/compare-fonts.mjs)
+font-previews/
