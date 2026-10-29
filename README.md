@@ -46,9 +46,12 @@ Everything is synthesised with Web Audio in `src/audio/Sound.js`, so there are n
 - **Hits**: a short, clean "thock" (click transient plus a falling low body), weighted differently for
   fist, mallet and axe, with a short dark splat on pumpkin. A pumpkin bursting gets a deep crunch and a
   dust grind gets a sparkle.
-- **Combo**: every hit in a combo rings the next note up the A minor pentatonic, starting low at A2.
+- **Combo**: every hit in a combo rings the next note up the A minor pentatonic, starting low at D2 and climbing at most two octaves.
   Rank ups add an arpeggio, switching weapon adds a bling, a cash-out is a cascade that lands on a low
   power chord and a broken combo is a sad wah-wah.
+- **Announcer**: a deep, Quake-style voice calls out each combo rank (WICKED, GRIM, …) and the music
+  ducks under it. The lines are pre-rendered in `public/voice/` by `scripts/build-voice.sh`
+  (espeak-ng pitched down about eight semitones, saturated and put in an arena reverb).
 - **Round**: stingers for READY / SMASH / TIME'S UP and a clock tick in the last ten seconds.
 
 Audio starts on the first click or key press (browser autoplay rules). **M**, or the label in the
@@ -67,8 +70,8 @@ textures and low-poly props (`src/core/retro.js`), plus dithering and grain on t
 
 ## Credits
 
-- Title font: [Snidely](https://typodermicfonts.com/) by Typodermic Fonts (Ray Larabie), released into the
-  public domain (CC0) and bundled in `public/fonts/`.
+- Title font: [Alagard](https://www.dafont.com/alagard.font) by Hewett Tsoi, free to use with credit,
+  bundled in `public/fonts/`.
 - Number and UI fonts: Jacquard 24 and Pixelify Sans from Google Fonts (SIL Open Font License).
 
 ## Stack

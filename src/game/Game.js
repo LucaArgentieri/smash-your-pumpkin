@@ -586,7 +586,7 @@ export class Game {
     const rank = this.comboRank();
     const rankUp = rank !== this.comboRank(before);
     this.ui.setCombo(this.combo, rank, this.comboMultiplier(), { rankUp });
-    this.sound.comboUp(this.combo, { rankUp, switched });
+    this.sound.comboUp(this.combo, { rankUp, switched, rank });
     return this.comboMultiplier();
   }
 

@@ -3,6 +3,8 @@
 // - Music: a low, driving loop for venting: a distorted bass riff in A minor
 //   over a heavy kick and a dark drone. Combo heat brings in double kicks, a
 //   snare, distorted power-chord stabs and opens the filter.
+// - Voice: a deep announcer calls out each combo rank (pre-rendered lines in
+//   public/voice/, made with scripts/build-voice.sh).
 // - Hits: a short, clean "thock" (click transient + falling low body), a little
 //   different per weapon; every hit in a combo also rings a low note that climbs
 //   the A minor pentatonic (the Peggle/Balatro hook). Rank ups, switches,
@@ -21,8 +23,10 @@ const ROOTS = [-36, -36, -40, -41];
 // Sixteenth riff: 0 = root, 12 = octave, 1 = flat second (the menace), null = rest.
 const RIFF = [0, null, 0, 0, 12, null, 0, 1, 0, null, 0, 0, 12, 0, 1, 0];
 const PENTATONIC = [0, 3, 5, 7, 10];
-// Combo notes start at A2 and climb from there.
-const COMBO_BASE = -24;
+// Combo notes start at D2 and climb from there: low, felt more than heard.
+const COMBO_BASE = -31;
+// Announcer lines for the combo ranks (public/voice/<rank>.mp3).
+const VOICE_LINES = ["wicked", "grim", "ghastly", "unholy", "damned", "apocalyptic"];
 
 export class Sound {
   constructor() {
@@ -37,6 +41,7 @@ export class Sound {
       const Context = window.AudioContext || window.webkitAudioContext;
       if (!Context) return;
       this.init(new Context());
+      this.loadVoices();
       document.addEventListener("visibilitychange", () => {
         if (document.hidden) this.ctx.suspend();
         else if (this.enabled) this.ctx.resume();
@@ -98,6 +103,34 @@ export class Sound {
     this.noiseBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
     const data = this.noiseBuffer.getChannelData(0);
     for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+  }
+
+  /** Fetches and decodes the announcer lines in the background. */
+  loadVoices() {
+    this.voices = {};
+    for (const name of VOICE_LINES) {
+      fetch(`${import.meta.env.BASE_URL}voice/${name}.mp3`)
+        .then((r) => r.arrayBuffer())
+        .then((data) => this.ctx.decodeAudioData(data))
+        .then((buffer) => (this.voices[name] = buffer))
+        .catch(() => {});
+    }
+  }
+
+  /** Deep announcer voice for a combo rank; the music ducks under it. */
+  announce(rank, t = this.now) {
+    const buffer = this.ready && this.voices?.[rank?.toLowerCase()];
+    if (!buffer) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 1.1;
+    src.connect(gain).connect(this.master);
+    src.start(t);
+    const duck = this.music.gain;
+    duck.cancelScheduledValues(t);
+    duck.setTargetAtTime(0.12, t, 0.04);
+    duck.setTargetAtTime(0.34, t + Math.min(buffer.duration, 1.4), 0.3);
   }
 
   // Cues take `t = this.now` as a default argument, evaluated before their
@@ -206,9 +239,10 @@ export class Sound {
   }
 
   /** Every combo step rings the next note up the pentatonic scale, low and round. */
-  comboUp(combo, { rankUp = false, switched = false, t = this.now } = {}) {
+  comboUp(combo, { rankUp = false, switched = false, rank = null, t = this.now } = {}) {
     if (!this.ready || combo < 2) return;
-    const i = Math.min(combo - 2, 14);
+    // Two octaves of climb at most, so even long combos stay low.
+    const i = Math.min(combo - 2, 9);
     const semis = COMBO_BASE + PENTATONIC[i % 5] + 12 * Math.floor(i / 5);
     this.tone({ type: "triangle", freq: hz(semis), dur: 0.22, gain: 0.3, t, echo: 0.2 });
     this.tone({ type: "sine", freq: hz(semis + 12), dur: 0.12, gain: 0.08, t });
@@ -218,8 +252,9 @@ export class Sound {
     }
     if (rankUp) {
       [0, 3, 7, 12, 15].forEach((s, n) =>
-        this.tone({ type: "square", freq: hz(semis + 12 + s), dur: 0.22, gain: 0.05, t: t + 0.06 + n * 0.05, echo: 0.4 }),
+        this.tone({ type: "square", freq: hz(semis + s), dur: 0.22, gain: 0.05, t: t + 0.06 + n * 0.05, echo: 0.4 }),
       );
+      this.announce(rank, t + 0.08);
       this.noise({ filter: "highpass", freq: 2000, to: 8000, dur: 0.35, gain: 0.08, t });
     }
   }
@@ -227,7 +262,7 @@ export class Sound {
   /** Combo banked: a cascade of coins climbing to a chord. */
   cashOut(combo, t = this.now) {
     if (!this.ready) return;
-    const notes = Math.min(4 + Math.floor(combo / 4), 14);
+    const notes = Math.min(4 + Math.floor(combo / 4), 10);
     for (let n = 0; n < notes; n++) {
       const semis = COMBO_BASE + PENTATONIC[n % 5] + 12 * Math.floor(n / 5);
       this.tone({ type: "triangle", freq: hz(semis), dur: 0.14, gain: 0.2, t: t + n * 0.045, echo: 0.2 });
