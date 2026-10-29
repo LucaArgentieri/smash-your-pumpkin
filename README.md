@@ -24,7 +24,8 @@ The combo is where high scores come from:
 - The window tightens as the combo grows (1.1 s down to 0.55 s). Instead of a timer bar, a pixelated
   wall of fire closes in from the screen edges as the window runs out, charring the room behind it and
   throbbing red when time is nearly gone. Banking the combo makes it flare; a miss snuffs it dull red.
-- Let it run out and it is **cashed in** for combo² × 3 points. Click empty table and it **breaks** for nothing.
+- Let it run out and it is **cashed in** for combo² × 3 points. Click empty table and it **breaks** for nothing. A live **BANK** value under the combo shows what
+  it would pay right now.
 - Ranks: WICKED (5), GRIM (10), GHASTLY (20), UNHOLY (35), DAMNED (50), APOCALYPTIC (80).
 - The best score and the combo record are kept in the browser.
 - Like Balatro, the numbers escalate with the combo: count, multiplier, rank, score popups and the
@@ -32,6 +33,9 @@ The combo is where high scores come from:
 
 The results screen (where the leaderboard will live) switches to a low camera over the pumpkin's
 shoulder while it turns to gaze at the moon, drifting slowly like an arcade attract mode.
+
+Score popups say where points come from ("BREAK ×2" for the mallet, "CLEAVE ×2" for the axe, "DUST!",
+bonus pumpkins like "PIP ×2"), and the results split the score into smashing and banked combos.
 
 Every click is one blow (holding the button does nothing), so speed and picking the right weapon are
 what score. Near misses still count, which helps on touch screens. The leaderboard keeps the top 100,

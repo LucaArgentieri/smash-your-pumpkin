@@ -166,6 +166,8 @@ export class Game {
     this.score = 0;
     this.pumpkinsSmashed = 0;
     this.shards = 0;
+    this.smashScore = 0; // points from hits
+    this.bankScore = 0; // points from banked combos
     this.combo = 0;
     this.bestCombo = 0;
     this.lastHitAt = -Infinity;
@@ -351,7 +353,8 @@ export class Game {
       askName: askName ? lastName() : null,
       score: this.score,
       pumpkins: this.pumpkinsSmashed,
-      shards: this.shards,
+      smashing: this.smashScore,
+      banked: this.bankScore,
       bestCombo: this.bestCombo,
       best: Math.max(previousBest, this.score),
       isBest: isBest && this.score > 0,
@@ -624,15 +627,22 @@ export class Game {
       return;
     }
     this.sound.cashOut(combo);
-    const bonus = Math.round(combo * combo * COMBO.cashOut);
+    const bonus = this.bankValue(combo);
     this.score += bonus;
+    this.bankScore += bonus;
     this.ui.setScore(this.score);
     this.ui.showCashOut(`x${combo} ${this.comboRank(combo) ?? TEXT.combo}  +${bonus}`, { combo });
+  }
+
+  /** What a combo is worth if it is banked now. */
+  bankValue(combo = this.combo) {
+    return combo >= COMBO.minCashOut ? Math.round(combo * combo * COMBO.cashOut) : 0;
   }
 
   register(result, point, tool, pumpkin, toolIndex) {
     if (result.type === "none") return;
     const multiplier = this.extendCombo(toolIndex, point);
+    this.ui.setBank(this.bankValue());
 
     let points = 0;
     if (result.type === "crack") points = GAME.hitScore;
@@ -651,9 +661,22 @@ export class Game {
     if (points === 0) return;
 
     this.score += points;
+    this.smashScore += points;
     this.ui.setScore(this.score);
-    const label = result.type === "dust" ? `${TEXT.dust} +${points}` : `+${points}`;
-    this.ui.popup(label, point, this.camera, { blood: result.type === "break" });
+    this.ui.popup(this.hitLabel(result, tool, points), point, this.camera, { blood: result.type === "break" });
+    // A bonus pumpkin says so when it breaks, just above the score.
+    const bonus = pumpkin?.variant.bonus ?? 1;
+    if (result.type === "break" && bonus > 1) {
+      this.ui.popup(`${pumpkin.variant.name.toUpperCase()} ×${bonus}`, point.clone().setY(point.y + 0.45), this.camera);
+    }
+  }
+
+  /** The popup explains where the points came from, not just how many. */
+  hitLabel(result, tool, points) {
+    if (result.type === "dust") return `${TEXT.dust} +${points}`;
+    if (tool.scoreMult > 1 && result.pieces > 0) return `${TEXT.cleave} ×${tool.scoreMult} +${points}`;
+    if (result.type === "break" && tool.breakBonus > 1) return `${TEXT.broke} ×${tool.breakBonus} +${points}`;
+    return `+${points}`;
   }
 
   // --- Loop ---------------------------------------------------------------------
