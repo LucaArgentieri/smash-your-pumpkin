@@ -128,7 +128,7 @@ export class Game {
     if (new URLSearchParams(location.search).has("cover")) return this.startCover();
     this.state = "title";
     this.spawnPumpkin();
-    this.ui.showTitle();
+    this.ui.showTitle({ withBoard: leaderboardEnabled });
     this.dim(1);
   }
 
@@ -152,7 +152,14 @@ export class Game {
     this.renderer.uniforms.vignette.value = 1.5;
     await this.spawnPumpkin(VARIANTS.find((v) => v.name === "Jack"));
     this.pumpkin.mesh.rotation.y = 0;
-    this.ui.showCover();
+    // ?cover&icon: the whole pumpkin on black, no title, for the favicon.
+    if (new URLSearchParams(location.search).has("icon")) {
+      this.cameraPosition.set(0, 0.95, 3.7);
+      this.cameraLook.set(0, 0.78, 0.15);
+      faceGlowStrength.value = 1.1;
+    } else {
+      this.ui.showCover();
+    }
     tweens.after(2.5, () => (window.coverReady = true));
   }
 
@@ -236,6 +243,8 @@ export class Game {
     if (action?.type === "quality") return this.quality.cycle();
     if (action?.type === "sound") return this.toggleSound();
     if (action?.type === "begin" && this.state === "title") return this.beginRound();
+    if (action?.type === "board" && this.state === "title") return this.openBoard();
+    if (action?.type === "back" && this.state === "board") return this.closeBoard();
     if (action?.type === "again" && this.state === "results") return this.beginRound();
     if (this.state === "name" && action?.type.startsWith("name")) return this.onNameAction(action);
     if (this.state === "playing") {
@@ -251,6 +260,8 @@ export class Game {
     if (index !== -1) this.selectTool(index);
     if (e.code === "KeyQ" && this.state !== "loading") this.quality.cycle();
     if (e.code === "KeyM") this.toggleSound();
+    if (this.state === "board" && (e.code === "Escape" || e.code === "Enter" || e.code === "Space")) return this.closeBoard();
+    if (e.code === "KeyL" && this.state === "title" && leaderboardEnabled) return this.openBoard();
     if (e.code === "Space" || e.code === "Enter") {
       if (this.state === "title" && this.ui.begin.shown) this.beginRound();
       if (this.state === "results" && this.ui.again.shown) this.beginRound();
@@ -348,6 +359,28 @@ export class Game {
   }
 
   // --- Leaderboard --------------------------------------------------------------
+
+  /** From the title: the moonlit showcase shot with the board. */
+  async openBoard() {
+    this.state = "board";
+    this.sound.blip();
+    this.ui.showBoardFromTitle();
+    this.cameraMode = "showcase";
+    this.turnPumpkin(MOON_GAZE);
+    this.dim(0.35);
+    const entries = await fetchTop().catch(() => null);
+    if (this.state === "board") this.ui.fillBoardFromTitle(entries);
+  }
+
+  closeBoard() {
+    this.sound.blip();
+    this.ui.hideBoard();
+    this.cameraMode = "play";
+    this.turnPumpkin(0);
+    this.dim(1);
+    this.state = "title";
+    this.ui.showTitle({ withBoard: true, fast: true });
+  }
 
   onNameAction(action) {
     const entry = this.ui.nameEntry;
@@ -651,8 +684,9 @@ export class Game {
     const look = _lookTarget;
     let roll = 0;
     if (this.cameraMode === "cover") {
-      target.copy(COVER_POSITION);
-      look.copy(COVER_LOOK);
+      // Held wherever startCover put it.
+      target.copy(this.cameraPosition);
+      look.copy(this.cameraLook);
     } else if (this.cameraMode === "showcase") {
       // Slow, layered sine drift and roll: the arcade attract-mode float.
       const t = this.elapsed;

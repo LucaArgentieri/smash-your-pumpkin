@@ -33,6 +33,8 @@ export class UI {
     this.title2 = add(new UIText({ text: TEXT.title[1], font: "title", size: 80, wobble: 0.012 }));
     this.tagline = add(new UIText({ text: TEXT.tagline, size: 22, ...VIOLET }));
     this.begin = add(new UIText({ text: TEXT.begin, font: "title", size: 66, wobble: 0.03 }));
+    this.boardButton = add(new UIText({ text: TEXT.boardButton, size: 22, colors: ["#e3d6ff", "#9b7bff"], glow: "#4a1f8a", intensity: 1.4 }));
+    this.back = add(new UIText({ text: TEXT.back, font: "title", size: 60, wobble: 0.03 }));
     this.coverTitle = add(new UIText({ text: TEXT.title.join(" "), font: "title", size: 120, width: 1300, colors: ["#ffb347", "#ff6a10"], glow: "#7a1a00" }));
     this.qualityLabel = add(new UIText({ text: "", size: 16, anchor: "left", width: 260, ...VIOLET }));
     this.soundLabel = add(new UIText({ text: "", size: 16, anchor: "right", width: 200, ...VIOLET }));
@@ -131,7 +133,9 @@ export class UI {
     place(this.title1, 0, top - 125 * k);
     place(this.title2, 0, top - 230 * k);
     place(this.tagline, 0, top - 290 * k);
-    place(this.begin, 0, bottom + 150 * k);
+    place(this.begin, 0, bottom + 165 * k);
+    place(this.boardButton, 0, bottom + 85 * k);
+    place(this.back, 0, bottom + 120 * k);
     place(this.coverTitle, 0, -0.02 * h);
     // Top-left: only shown on title and results, when the HUD is hidden.
     place(this.qualityLabel, left + margin * 0.6, top - Math.max(16, 20 * k), w * 0.5);
@@ -196,11 +200,14 @@ export class UI {
 
   // --- Screens ------------------------------------------------------------------
 
-  showTitle() {
-    this.title1.show({ duration: 1.3, delay: 0.2 });
-    this.title2.show({ duration: 1.1, delay: 0.7 });
-    this.tagline.show({ duration: 1, delay: 1.2 });
-    this.begin.show({ duration: 0.9, delay: 1.6 });
+  /** `withBoard`: offer the LEADERBOARD button (leaderboard online). */
+  showTitle({ withBoard = false, fast = false } = {}) {
+    const d = fast ? 0.4 : 1;
+    this.title1.show({ duration: 1.3, delay: 0.2 * d });
+    this.title2.show({ duration: 1.1, delay: 0.7 * d });
+    this.tagline.show({ duration: 1, delay: 1.2 * d });
+    this.begin.show({ duration: 0.9, delay: 1.6 * d });
+    if (withBoard) this.boardButton.show({ duration: 0.8, delay: 1.8 * d });
     this.qualityLabel.show({ duration: 0.6, delay: 2.2 });
     this.soundLabel.show({ duration: 0.6, delay: 2.2 });
   }
@@ -222,7 +229,7 @@ export class UI {
   }
 
   hideTitle() {
-    [this.title1, this.title2, this.tagline, this.begin, this.qualityLabel, this.soundLabel].forEach((el, i) =>
+    [this.title1, this.title2, this.tagline, this.begin, this.boardButton, this.qualityLabel, this.soundLabel].forEach((el, i) =>
       el.hide({ duration: 0.5, delay: i * 0.05 }),
     );
   }
@@ -308,6 +315,22 @@ export class UI {
   }
 
   /** Swaps the results page for the leaderboard, with AGAIN under it. */
+  /** Leaderboard opened from the title: loading line, then the board and BACK. */
+  showBoardFromTitle() {
+    this.hideTitle();
+    this.board.loading();
+  }
+
+  fillBoardFromTitle(entries) {
+    this.board.show(entries, null, 0.2);
+    this.back.show({ duration: 0.8, delay: 1 });
+  }
+
+  hideBoard() {
+    this.board.hide();
+    this.back.hide({ duration: 0.4 });
+  }
+
   showBoard(entries, you) {
     this.hideResults({ keepQuality: true });
     this.board.show(entries, you, 0.4);
@@ -447,7 +470,7 @@ export class UI {
         tweens.to(slot.u.hover, "value", over ? 0.5 : 0, 0.15);
       }
     }
-    for (const button of [this.begin, this.again, this.qualityLabel, this.soundLabel]) {
+    for (const button of [this.begin, this.boardButton, this.back, this.again, this.qualityLabel, this.soundLabel]) {
       const over = !touch && button.contains(x, y, 20);
       if (over !== button.hovered) {
         button.hovered = over;
@@ -462,7 +485,10 @@ export class UI {
     if (name) return name;
     const slot = this.slots.findIndex((c) => c.contains(x, y, 10));
     if (slot !== -1) return { type: "tool", index: slot };
-    if (this.begin.contains(x, y, 20)) return { type: "begin" };
+    // The small LEADERBOARD button first: BEGIN's padded box sits just above it.
+    if (this.boardButton.contains(x, y, 14)) return { type: "board" };
+    if (this.begin.contains(x, y, 12)) return { type: "begin" };
+    if (this.back.contains(x, y, 20)) return { type: "back" };
     if (this.qualityLabel.contains(x, y, 12)) return { type: "quality" };
     if (this.soundLabel.contains(x, y, 12)) return { type: "sound" };
     if (this.again.contains(x, y, 20)) return { type: "again" };
@@ -501,7 +527,8 @@ export class UI {
     const { x, y, touch, seen } = this.pointer;
     const weapon = this.weapons[this.selected];
     const mouseWeapon = this.playing && !touch && seen;
-    this.reticle.visible = !this.playing && !touch && seen;
+    // Explicit boolean: three.js only hides objects whose visible is exactly false.
+    this.reticle.visible = Boolean(!this.playing && !touch && seen);
     this.reticle.position.set(x, y, 0);
     if (mouseWeapon) weapon.u.reveal.value = 1;
 

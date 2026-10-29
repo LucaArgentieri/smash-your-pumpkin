@@ -89,6 +89,8 @@ A three-letter arcade name and a top 100 board, stored in Supabase.
 3. Put them in `.env.production` (committed, they are public by design) for the deployed game, or
    in `.env.local` (copy `.env.example`) for local development.
 
+The board can also be opened from the title screen (LEADERBOARD, or **L**).
+
 Without them the game runs offline: no name entry, no board. The anon key is meant to be public;
 the database only allows reading the board and calling `submit_score`. A browser game can't fully
 stop forged scores, so the function only rejects implausible ones (tighten its limits once real scores exist).
@@ -114,7 +116,7 @@ Pages must serve from the `gh-pages` branch (root).
 | `src/ui/` | Burn-in UI panels, tool cards, HUD and screens |
 
 | `scripts/build-placeholders.mjs` | Generates the placeholder pumpkin GLBs |
-| `scripts/render-cover.mjs` | Renders the key art (`public/og.png`, the game in its `?cover` mode) and the favicon / touch icon (`scripts/icons.html`) |
+| `scripts/render-cover.mjs` | Renders the key art (`public/og.png`) and the favicon / touch icon from the game's `?cover` mode |
 | `supabase/schema.sql` | Leaderboard table, policies and `submit_score` |
 
 ## Performance
