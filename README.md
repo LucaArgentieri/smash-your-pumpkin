@@ -78,7 +78,7 @@ textures and low-poly props (`src/core/retro.js`), plus dithering and grain on t
 
 - Title font: [Alagard](https://www.dafont.com/alagard.font) by Hewett Tsoi, free to use with credit,
   bundled in `public/fonts/`.
-- Number and UI fonts: Jacquard 24 and Pixelify Sans from Google Fonts (SIL Open Font License).
+- UI font: Pixelify Sans from Google Fonts (SIL Open Font License).
 
 ## Stack
 
