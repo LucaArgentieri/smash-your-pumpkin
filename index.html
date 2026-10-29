@@ -20,12 +20,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=New+Rocker&family=Jacquard+24&family=Pixelify+Sans:wght@400;700&display=block"
+      href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Pixelify+Sans:wght@400;700&display=block"
       rel="stylesheet"
     />
     <style>
       /* Shown by the HTML itself, before any JavaScript, WebGL or physics has
          loaded; src/core/loader.js reports progress and removes it. */
+      @font-face {
+        font-family: "Squealer";
+        src: url("/fonts/squealer.otf") format("opentype");
+        font-display: block;
+      }
       html, body { background: #07030c; margin: 0; }
       #loader {
         position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
@@ -35,7 +40,7 @@
       #loader.done { opacity: 0; pointer-events: none; }
       /* Same face and ember glow as the in-game titles. */
       #loader .label {
-        font: 400 clamp(26px, 7vw, 44px) "New Rocker", serif; text-align: center;
+        font: 400 clamp(28px, 7.5vw, 48px) "Squealer", serif; text-align: center;
         background: linear-gradient(#ffe9a8, #ff7a1a); -webkit-background-clip: text; background-clip: text;
         color: transparent; filter: drop-shadow(0 0 10px rgba(255, 74, 16, 0.7));
         animation: flicker 2.2s infinite steps(1); transition: opacity 0.25s ease;

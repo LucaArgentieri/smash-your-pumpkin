@@ -62,6 +62,12 @@ PS1 era on purpose, at every quality tier: a 200-line scene upscaled without fil
 snapped to that pixel grid (the wobble when the camera moves), affine texture mapping, unfiltered
 textures and low-poly props (`src/core/retro.js`), plus dithering and grain on the scene only.
 
+## Credits
+
+- Title font: [Squealer](https://typodermicfonts.com/) by Typodermic Fonts (Ray Larabie), released into the
+  public domain (CC0) and bundled in `public/fonts/`.
+- Number and UI fonts: Jacquard 24 and Pixelify Sans from Google Fonts (SIL Open Font License).
+
 ## Stack
 
 - three.js `WebGPURenderer` (falls back to WebGL2) with TSL for every material and for post-processing
