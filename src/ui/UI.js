@@ -29,10 +29,10 @@ export class UI {
     const add = (el) => (this.scene.add(el), el);
 
     // Title screen.
-    this.title1 = add(new UIText({ text: TEXT.title[0], font: "title", size: 150, wobble: 0.012 }));
-    this.title2 = add(new UIText({ text: TEXT.title[1], font: "title", size: 80, wobble: 0.012 }));
+    this.title1 = add(new UIText({ text: TEXT.title[0], font: "title", size: 150, wobble: 0.012, intensity: 1.2 }));
+    this.title2 = add(new UIText({ text: TEXT.title[1], font: "title", size: 80, wobble: 0.012, intensity: 1.2 }));
     this.tagline = add(new UIText({ text: TEXT.tagline, size: 22, ...VIOLET }));
-    this.begin = add(new UIText({ text: TEXT.begin, font: "title", size: 66, wobble: 0.03 }));
+    this.begin = add(new UIText({ text: TEXT.begin, font: "title", size: 66, wobble: 0.03, intensity: 1.3 }));
     this.boardButton = add(new UIText({ text: TEXT.boardButton, size: 22, colors: ["#e3d6ff", "#9b7bff"], glow: "#4a1f8a", intensity: 1.4 }));
     this.back = add(new UIText({ text: TEXT.back, font: "title", size: 60, wobble: 0.03 }));
     this.coverTitle = add(new UIText({ text: TEXT.title.join(" "), font: "title", size: 120, width: 1300, colors: ["#ffb347", "#ff6a10"], glow: "#7a1a00" }));

@@ -141,7 +141,10 @@ export class Renderer {
 
     let color = composite;
     if (bloomScale > 0) {
-      const glow = bloom(composite, 0.85, 0.55, 0.62);
+      // The UI feeds the bloom at a third of its brightness: enough for a halo
+      // around text, without big titles washing the whole room in haze.
+      const bloomInput = room.mul(float(1).sub(ui.a)).add(ui.rgb.mul(0.35));
+      const glow = bloom(bloomInput, 0.85, 0.55, 0.62);
       glow.setResolutionScale(bloomScale);
       color = color.add(glow.rgb);
     } else {

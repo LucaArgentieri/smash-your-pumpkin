@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { COMBO, font, GAME, TEXT, TOOLS } from "../config.js";
+import { COMBO, font, FONTS, GAME, TEXT, TOOLS } from "../config.js";
 import { FracturePool } from "../core/FracturePool.js";
 import { Physics } from "../core/Physics.js";
 import { live, Quality } from "../core/Quality.js";
@@ -764,6 +764,7 @@ function shuffle(list) {
 }
 
 async function loadFonts() {
+  await previewTitleFont();
   const fonts = ["title", "numbers", "body"].map((name) => font(name, 32));
   try {
     await Promise.race([
@@ -772,6 +773,22 @@ async function loadFonts() {
     ]);
   } catch {
     // Fall back to whatever the browser has.
+  }
+}
+
+/**
+ * Dev only: ?font=<file> swaps the title face for public/fonts/<file>, to try
+ * candidate fonts in the real scene (see scripts/compare-fonts.mjs).
+ */
+async function previewTitleFont() {
+  const file = import.meta.env.DEV && new URLSearchParams(location.search).get("font");
+  if (!file) return;
+  try {
+    const face = new FontFace("Preview Title", `url(${import.meta.env.BASE_URL}fonts/${file})`);
+    document.fonts.add(await face.load());
+    FONTS.title = { family: '"Preview Title", serif', weight: 400 };
+  } catch (error) {
+    console.warn(`[fonts] could not load fonts/${file}`, error);
   }
 }
 
