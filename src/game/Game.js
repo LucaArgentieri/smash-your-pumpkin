@@ -417,7 +417,7 @@ export class Game {
     } catch (error) {
       console.warn("[leaderboard] submit failed", error);
     }
-    this.showBoard({ name, score: this.score, rank });
+    this.showBoard({ name, score: this.score, best_combo: this.bestCombo, rank });
   }
 
   /** Leaderboard page; `you` is the run just submitted (null when skipped). */

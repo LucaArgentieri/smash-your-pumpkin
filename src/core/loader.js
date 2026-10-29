@@ -1,22 +1,24 @@
 // Drives the HTML loader in index.html (it is visible before any script runs,
-// so there is never a black screen while the game boots).
+// so there is never a black screen while the game boots): a single line of
+// text naming the current stage, with dots ticking after it.
 
 const root = document.getElementById("loader");
-const fill = root?.querySelector(".fill");
 const label = root?.querySelector(".label");
+const text = root?.querySelector(".text");
 let current = 0;
 
-/** Moves the bar to `fraction` (never backwards) and optionally relabels it. */
-export function progress(fraction, text) {
+/** Records progress (for assistive tech) and, if given, switches the stage text. */
+export function progress(fraction, stage) {
   if (!root) return;
   current = Math.max(current, Math.min(1, fraction));
-  fill.style.width = `${Math.round(current * 100)}%`;
   root.setAttribute("aria-valuenow", String(Math.round(current * 100)));
-  if (text && text !== label.textContent) {
-    // Quick fade between stage names.
+  if (stage) {
+    // Strip any dots: the ticking dots are drawn by the loader itself.
+    stage = stage.replace(/\.+$/, "");
+    if (stage === text.textContent) return;
     label.classList.add("swap");
     setTimeout(() => {
-      label.textContent = text;
+      text.textContent = stage;
       label.classList.remove("swap");
     }, 250);
   }
@@ -30,9 +32,9 @@ export function finish() {
   setTimeout(() => root.remove(), 900);
 }
 
-/** Shown in place of the bar when the game can't start (e.g. no WebGL). */
-export function fail(text) {
+/** Shown instead of a stage when the game can't start (e.g. no WebGL). */
+export function fail(message) {
   if (!root) return;
-  label.textContent = text;
-  root.querySelector(".bar").style.display = "none";
+  text.textContent = message;
+  root.querySelector(".dots")?.remove();
 }

@@ -103,11 +103,11 @@ export const PALETTE = {
   ink: "#1a0d0a",
 };
 
-// Titles and words: a gothic face in the spirit of Blasphemous that stays
-// legible. Numbers keep the pixel blackletter, which reads fine for digits.
+// Titles and words: New Rocker, a vintage blackletter with a carved, rock
+// poster feel. Numbers keep the pixel blackletter, which reads well for digits.
 export const FONTS = {
-  title: { family: '"Grenze Gotisch", serif', weight: 700 },
-  numbers: { family: '"Jacquard 24", "Grenze Gotisch", serif', weight: 400 },
+  title: { family: '"New Rocker", serif', weight: 400 },
+  numbers: { family: '"Jacquard 24", "New Rocker", serif', weight: 400 },
   body: { family: '"Pixelify Sans", monospace', weight: 400 },
 };
 

@@ -20,7 +20,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@700&family=Jacquard+24&family=Pixelify+Sans:wght@400;700&display=block"
+      href="https://fonts.googleapis.com/css2?family=New+Rocker&family=Jacquard+24&family=Pixelify+Sans:wght@400;700&display=block"
       rel="stylesheet"
     />
     <style>
@@ -33,24 +33,16 @@
         transition: opacity 0.8s ease;
       }
       #loader.done { opacity: 0; pointer-events: none; }
-      /* Same gothic face and ember glow as the in-game titles. */
+      /* Same face and ember glow as the in-game titles. */
       #loader .label {
-        font: 700 clamp(26px, 7vw, 44px) "Grenze Gotisch", serif; text-align: center;
+        font: 400 clamp(26px, 7vw, 44px) "New Rocker", serif; text-align: center;
         background: linear-gradient(#ffe9a8, #ff7a1a); -webkit-background-clip: text; background-clip: text;
         color: transparent; filter: drop-shadow(0 0 10px rgba(255, 74, 16, 0.7));
         animation: flicker 2.2s infinite steps(1); transition: opacity 0.25s ease;
       }
       #loader .label.swap { opacity: 0; }
-      /* Chunky segmented bar: embers filling a charred slot. */
-      #loader .bar {
-        width: min(300px, 70vw); height: 14px; padding: 3px; background: #12060c;
-        border: 2px solid #3b1650; box-shadow: 0 0 0 2px #07030c, 0 0 18px rgba(59, 22, 80, 0.6);
-      }
-      #loader .fill {
-        height: 100%; width: 0; transition: width 0.35s steps(6);
-        background: repeating-linear-gradient(90deg, #ff5a14 0 10px, #ffb347 10px 12px, transparent 12px 15px);
-        filter: drop-shadow(0 0 6px #ff3a0a);
-      }
+      /* The three dots always take their space, so the text never shifts. */
+      #loader .dots span { visibility: hidden; }
       @keyframes flicker {
         0%, 100% { opacity: 1; } 12% { opacity: 0.82; } 14% { opacity: 1; } 47% { opacity: 0.9; }
         49% { opacity: 1; } 71% { opacity: 0.76; } 73% { opacity: 1; }
@@ -60,9 +52,20 @@
   </head>
   <body>
     <div id="loader" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100">
-      <div class="label">lighting the candles...</div>
-      <div class="bar"><div class="fill"></div></div>
+      <div class="label"><span class="text">lighting the candles</span><span class="dots"><span>.</span><span>.</span><span>.</span></span></div>
     </div>
+    <script>
+      // Dots tick before any module has loaded; stops when the loader is gone.
+      (function () {
+        var step = 0;
+        var timer = setInterval(function () {
+          var dots = document.querySelectorAll("#loader .dots span");
+          if (!dots.length) return clearInterval(timer);
+          step = (step + 1) % 4;
+          for (var i = 0; i < dots.length; i++) dots[i].style.visibility = i < step ? "visible" : "hidden";
+        }, 380);
+      })();
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
