@@ -103,12 +103,11 @@ export const PALETTE = {
   ink: "#1a0d0a",
 };
 
-// Titles and words: Alagard by Hewett Tsoi (free, credit given in README;
-// public/fonts/), a bitmap gothic made for games. Numbers keep the pixel
-// blackletter, which reads well for digits.
+// Titles, words and numbers: Alagard by Hewett Tsoi (free, credit given in
+// README; public/fonts/), a bitmap gothic made for games.
 export const FONTS = {
   title: { family: '"Alagard", serif', weight: 400 },
-  numbers: { family: '"Jacquard 24", "Alagard", serif', weight: 400 },
+  numbers: { family: '"Alagard", serif', weight: 400 },
   body: { family: '"Pixelify Sans", monospace', weight: 400 },
 };
 
