@@ -161,12 +161,15 @@ export class UIText extends UIPanel {
     wobble = 0,
     backdrop = null,
   }) {
-    const pad = size * 0.45;
+    // The title face has swashes (tails on N, L, K...) that reach well past
+    // the advance width and below the baseline: give it extra room.
+    const swash = font === "title";
+    const pad = size * (swash ? 0.7 : 0.45);
     const measured = measure(text, cssFont(font, size)) + pad * 2;
     const boxWidth = width ?? measured;
     super({
       width: boxWidth,
-      height: size * 1.55,
+      height: size * (swash ? 1.95 : 1.55),
       anchor,
       intensity,
       wobble,
@@ -186,7 +189,12 @@ export class UIText extends UIPanel {
 function measure(text, css) {
   const ctx = measure.ctx ?? (measure.ctx = document.createElement("canvas").getContext("2d"));
   ctx.font = css;
-  return ctx.measureText(text).width;
+  return inkWidth(ctx.measureText(text));
+}
+
+/** Width actually painted, which for swash letters exceeds the advance width. */
+function inkWidth(metrics) {
+  return Math.max(metrics.width, metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight);
 }
 
 function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor, backdrop }) {
@@ -203,7 +211,7 @@ function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor, back
   let px = size;
   ctx.font = cssFont(font, px);
   const available = w - pad * 2;
-  const textWidth = ctx.measureText(text).width;
+  const textWidth = inkWidth(ctx.measureText(text));
   if (textWidth > available) {
     px = Math.floor(size * (available / textWidth));
     ctx.font = cssFont(font, px);
@@ -212,7 +220,16 @@ function drawText(ctx, w, h, text, { font, size, pad, colors, glow, anchor, back
   ctx.textBaseline = "middle";
   const side = anchor.includes("left") ? "left" : anchor.includes("right") ? "right" : "center";
   ctx.textAlign = side;
-  const x = side === "left" ? pad : side === "right" ? w - pad : w / 2;
+  // Measured after textAlign is set: the bounding box is relative to it.
+  const metrics = ctx.measureText(text);
+  // Centred text is centred on its ink, so a long swash on one side doesn't
+  // push the word off-centre or out of the canvas.
+  const x =
+    side === "left"
+      ? pad
+      : side === "right"
+        ? w - pad
+        : w / 2 + (metrics.actualBoundingBoxLeft - metrics.actualBoundingBoxRight) / 2;
   const y = h / 2 + px * 0.05;
 
   const gradient = ctx.createLinearGradient(0, y - px / 2, 0, y + px / 2);
