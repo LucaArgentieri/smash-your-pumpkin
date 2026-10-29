@@ -8,7 +8,7 @@ import { ease, tweens } from "../core/Tween.js";
 import { Debris } from "../fx/Debris.js";
 import { Pumpkin } from "../pumpkins/Pumpkin.js";
 import { VARIANTS } from "../pumpkins/variants.js";
-import { getPumpkinMaterials } from "../pumpkins/materials.js";
+import { faceGlowStrength, getPumpkinMaterials } from "../pumpkins/materials.js";
 import { loadPumpkinModel } from "../pumpkins/models.js";
 import { UI } from "../ui/UI.js";
 import { Cabin, MOON_POSITION } from "../world/Cabin.js";
@@ -130,6 +130,10 @@ export class Game {
     this.cameraLook.copy(COVER_LOOK);
     this.quality.set("high");
     this.cabin.setQuality(this.quality.preset);
+    this.cabin.setCoverLighting();
+    // Bright enough to bloom and spill onto the skin, low enough to stay orange.
+    faceGlowStrength.value = 1.6;
+    this.renderer.uniforms.vignette.value = 1.5;
     await this.spawnPumpkin(VARIANTS.find((v) => v.name === "Jack"));
     this.pumpkin.mesh.rotation.y = 0;
     this.ui.showCover();

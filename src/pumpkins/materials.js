@@ -28,6 +28,9 @@ const cache = new Map();
 const appear = uniform(1).onObjectUpdate(({ object }) => object.userData.appear ?? 1);
 const hit = uniform(0).onObjectUpdate(({ object }) => object.userData.hit ?? 0);
 
+/** Brightness of carved faces; the key art turns it up in the dark. */
+export const faceGlowStrength = uniform(2.6);
+
 /**
  * Burn dissolve shared by shell, flesh and stem: x = visibility, y = ember
  * rim. The noise only runs while an object is actually burning (appear < 1);
@@ -73,7 +76,7 @@ export function getPumpkinMaterials(variant, look, stemLook) {
   let faceGlow = vec3(0);
   if (look.emissiveMap) faceGlow = texture(unfiltered(look.emissiveMap), skinUV).rgb.mul(color(look.emissive));
   else if (variant.glowFromAlbedo && look.map) faceGlow = albedo.mul(smoothstep(0.55, 0.85, luminance(albedo)));
-  outer.emissiveNode = faceGlow.mul(flicker).mul(2.6).add(rim).add(flash);
+  outer.emissiveNode = faceGlow.mul(flicker).mul(faceGlowStrength).add(rim).add(flash);
   outer.opacityNode = dissolve.x;
   outer.alphaTest = 0.5;
 

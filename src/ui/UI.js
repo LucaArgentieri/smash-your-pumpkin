@@ -34,7 +34,7 @@ export class UI {
     this.tagline = add(new UIText({ text: TEXT.tagline, size: 22, ...VIOLET }));
     this.begin = add(new UIText({ text: TEXT.begin, font: "title", size: 66, wobble: 0.03 }));
     this.loading = add(new UIText({ text: TEXT.loading, font: "title", size: 54, width: 700, wobble: 0.03 }));
-    this.coverTitle = add(new UIText({ text: TEXT.title.join(" "), font: "title", size: 120, width: 1300, colors: ["#ffb347", "#ff6a10"], glow: "#ff3a00" }));
+    this.coverTitle = add(new UIText({ text: TEXT.title.join(" "), font: "title", size: 120, width: 1300, colors: ["#ffb347", "#ff6a10"], glow: "#7a1a00" }));
     this.qualityLabel = add(new UIText({ text: "", size: 16, anchor: "left", width: 260, ...VIOLET }));
 
     // HUD.

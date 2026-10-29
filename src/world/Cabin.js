@@ -58,7 +58,8 @@ export class Cabin {
   }
 
   addLights() {
-    this.scene.add(new THREE.HemisphereLight(0x4b2a6e, 0x0a0410, 0.6));
+    this.hemisphere = new THREE.HemisphereLight(0x4b2a6e, 0x0a0410, 0.6);
+    this.scene.add(this.hemisphere);
 
     const moonLight = new THREE.DirectionalLight(PALETTE.moon, 1.1);
     moonLight.position.set(-2, 7, -6);
@@ -202,7 +203,7 @@ export class Cabin {
     group.add(light);
 
     this.scene.add(group);
-    return { light, base: 4 + height * 2, boost: 1, seed: Math.random() * 100 };
+    return { group, light, base: 4 + height * 2, boost: 1, seed: Math.random() * 100 };
   }
 
   addMoon() {
@@ -223,6 +224,7 @@ export class Cabin {
     moon.position.copy(MOON_POSITION);
     moon.lookAt(0, 2, 5);
     this.scene.add(moon);
+    this.moon = moon;
 
     // Soft halo sprite behind it.
     const haloMaterial = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, fog: false });
@@ -233,6 +235,7 @@ export class Cabin {
     halo.scale.setScalar(12);
     halo.position.copy(moon.position).add(new THREE.Vector3(0, 0, -1));
     this.scene.add(halo);
+    this.halo = halo;
   }
 
   addDust() {
@@ -254,6 +257,24 @@ export class Cabin {
     dust.frustumCulled = false;
     this.scene.add(dust);
     this.dust = dust;
+  }
+
+  /**
+   * Key-art lighting, like the Inscryption cover: the room almost black, the
+   * pumpkin only grazed by a deep red glow so its carving does the lighting.
+   */
+  setCoverLighting() {
+    this.moon.visible = false;
+    this.halo.visible = false;
+    this.dust.visible = false;
+    this.candles.forEach((c) => (c.group.visible = false));
+    this.moonLight.intensity = 0.05;
+    this.lantern.intensity = 4;
+    this.lantern.color.set(0x8a1606);
+    this.hemisphere.intensity = 0.08;
+    this.keyBase = 1.2;
+    this.key.color.set(0x7a1004);
+    this.scene.fog.density = 0.12;
   }
 
   update(elapsed) {
