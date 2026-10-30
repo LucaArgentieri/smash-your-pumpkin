@@ -12,7 +12,9 @@ function drawIcon(ctx, name, x, y, pixel, color) {
 
 /**
  * Weapon slot: just the weapon's silhouette in a dark ember-rimmed frame. No
- * text; what each weapon does is for the player to find out.
+ * text; what each weapon does is for the player to find out. `charge` (0..1)
+ * fills the frame with embers from the bottom; until it is full the weapon
+ * is a dim shadow.
  */
 export function createWeaponSlot(tool) {
   const size = 84;
@@ -20,14 +22,27 @@ export function createWeaponSlot(tool) {
     width: size,
     height: size,
     intensity: 1.2,
-    draw: (ctx, w, h) => {
+    draw: (ctx, w, h, charge = 1) => {
+      const ready = charge >= 1;
       ctx.fillStyle = "rgba(18, 7, 6, 0.88)";
       roundRect(ctx, 3, 3, w - 6, h - 6, 10);
       ctx.fill();
-      ctx.strokeStyle = "rgba(255, 122, 40, 0.55)";
-      ctx.lineWidth = 2;
+      if (tool.charge) {
+        // Embers rising with the charge, clipped to the frame.
+        ctx.save();
+        ctx.clip();
+        const top = 3 + (h - 6) * (1 - charge);
+        const embers = ctx.createLinearGradient(0, top, 0, h);
+        embers.addColorStop(0, ready ? "rgba(255, 150, 50, 0.55)" : "rgba(255, 90, 20, 0.45)");
+        embers.addColorStop(1, "rgba(120, 20, 6, 0.5)");
+        ctx.fillStyle = embers;
+        ctx.fillRect(0, top, w, h - top);
+        ctx.restore();
+      }
+      ctx.strokeStyle = ready ? "rgba(255, 140, 50, 0.9)" : "rgba(255, 122, 40, 0.35)";
+      ctx.lineWidth = ready && tool.charge ? 3 : 2;
       ctx.stroke();
-      drawIcon(ctx, tool.icon, (w - 12 * 5) / 2, (h - 12 * 5) / 2, 5, "#f3e2c0");
+      drawIcon(ctx, tool.icon, (w - 12 * 5) / 2, (h - 12 * 5) / 2, 5, ready ? "#f3e2c0" : "#5a4a42");
     },
   });
   slot.redraw();

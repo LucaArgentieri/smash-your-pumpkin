@@ -171,8 +171,15 @@ export class Game {
     this.combo = 0;
     this.bestCombo = 0;
     this.lastHitAt = -Infinity;
-    this.lastTool = null;
     this.timeLeft = GAME.duration;
+    // Punches landed towards each weapon's charge (the fist needs none).
+    this.charges = TOOLS.map(() => 0);
+    TOOLS.forEach((tool, i) => this.ui?.setCharge(i, tool.charge ? 0 : 1));
+  }
+
+  charged(index) {
+    const need = TOOLS[index].charge;
+    return !need || this.charges[index] >= need;
   }
 
   /**
@@ -278,6 +285,11 @@ export class Game {
 
   selectTool(index) {
     if (index === this.tool && this.state === "playing") return;
+    if (this.state === "playing" && !this.charged(index)) {
+      this.ui.deny(index);
+      this.sound.deny();
+      return;
+    }
     this.tool = index;
     this.ui.select(index);
     this.sound.select(index);
@@ -294,6 +306,9 @@ export class Game {
     else {
       this.ui.hideResults();
     }
+    // Every round starts with bare fists and empty weapons.
+    this.tool = 0;
+    this.ui.selected = 0;
     this.ui.setPlaying(true);
     this.dim(0);
     this.cameraMode = "play";
@@ -503,6 +518,7 @@ export class Game {
     const hit = this.raycaster.intersectObjects(targets, false)[0] ?? this.nearMiss(targets);
     this.ui.strike();
     if (!hit) {
+      if (TOOLS[this.tool].charge) this.spend(this.tool);
       // A swing at nothing breaks the combo (no cash-out).
       this.sound.whiff();
       if (this.combo > 1) this.endCombo({ cashOut: false });
@@ -510,8 +526,10 @@ export class Game {
       return;
     }
 
-    const tool = TOOLS[this.tool];
+    const index = this.tool;
+    const tool = TOOLS[index];
     this.cooldownUntil = this.elapsed + tool.cooldown;
+    if (tool.charge) this.spend(index);
     const motion = this.reducedMotion ? 0.25 : 1;
     this.shake = Math.min(1, this.shake + tool.shake * motion);
     if (!this.reducedMotion) {
@@ -539,7 +557,26 @@ export class Game {
       this.pumpkin = null;
       tweens.after(GAME.nextPumpkinDelay, () => this.spawnPumpkin());
     }
-    if (this.state === "playing") this.register(result, hit.point, tool, pumpkin, TOOLS.indexOf(tool));
+    if (this.state === "playing") this.register(result, hit.point, tool, pumpkin);
+  }
+
+  /** A weapon's one blow empties it; the fist comes back after the swing. */
+  spend(index) {
+    this.charges[index] = 0;
+    this.ui.setCharge(index, 0);
+    tweens.after(0.2, () => {
+      if (this.tool === index) this.selectTool(0);
+    });
+  }
+
+  /** Every landed punch charges the weapons that aren't full yet. */
+  chargeWeapons() {
+    TOOLS.forEach((tool, i) => {
+      if (!tool.charge || this.charged(i)) return;
+      this.charges[i]++;
+      this.ui.setCharge(i, this.charges[i] / tool.charge);
+      if (this.charged(i)) this.sound.charged(i);
+    });
   }
 
   /** Closest target whose bounds pass within AIM_ASSIST of the ray. */
@@ -582,23 +619,20 @@ export class Game {
   }
 
   /** Extends the combo for a landed hit and returns the point multiplier. */
-  extendCombo(toolIndex, point) {
-    const alive = this.combo > 0;
+  extendCombo(tool, point) {
+    // A weapon blow on a big enough combo banks it and starts a new one.
+    if (tool.charge && this.combo >= COMBO.cashAt) this.endCombo({ cashOut: true });
     const before = this.combo;
-    this.combo += 1;
-    const switched = alive && this.lastTool !== null && toolIndex !== this.lastTool;
-    if (switched) {
-      this.combo += COMBO.switchBonus;
-      this.ui.popup(`${TEXT.switched} +${COMBO.switchBonus}`, point, this.camera);
-    }
-    this.lastTool = toolIndex;
+    this.combo += 1 + tool.comboBonus;
+    const boosted = tool.comboBonus > 0;
+    if (boosted) this.ui.popup(`${TEXT.crush} +${tool.comboBonus}`, point, this.camera);
     this.lastHitAt = this.elapsed;
     this.renderer.uniforms.fireTint.value.setRGB(1, 1, 1);
     this.bestCombo = Math.max(this.bestCombo, this.combo);
     const rank = this.comboRank();
     const rankUp = rank !== this.comboRank(before);
     this.ui.setCombo(this.combo, rank, this.comboMultiplier(), { rankUp });
-    this.sound.comboUp(this.combo, { rankUp, switched, rank });
+    this.sound.comboUp(this.combo, { rankUp, boosted, rank });
     return this.comboMultiplier();
   }
 
@@ -613,7 +647,6 @@ export class Game {
   endCombo({ cashOut }) {
     const combo = this.combo;
     this.combo = 0;
-    this.lastTool = null;
     this.ui.hideCombo();
     if (combo < COMBO.minCashOut) return;
     // Banked: a last flare of flames rushing in; broken: a dull red snuff.
@@ -639,9 +672,10 @@ export class Game {
     return combo >= COMBO.minCashOut ? Math.round(combo * combo * COMBO.cashOut) : 0;
   }
 
-  register(result, point, tool, pumpkin, toolIndex) {
+  register(result, point, tool, pumpkin) {
     if (result.type === "none") return;
-    const multiplier = this.extendCombo(toolIndex, point);
+    if (!tool.charge) this.chargeWeapons();
+    const multiplier = this.extendCombo(tool, point);
     this.ui.setBank(this.bankValue());
 
     let points = 0;
@@ -649,15 +683,15 @@ export class Game {
     if (result.type === "dust") points = GAME.dustScore;
     // Lower quality tiers cut fewer pieces; normalise so scores stay comparable.
     if (result.type === "pieces" || result.type === "break") {
-      points = (result.pieces / live.pieces) * GAME.pieceScore * tool.scoreMult;
+      points = (result.pieces / live.pieces) * GAME.pieceScore;
     }
     if (result.type === "break") {
-      points += GAME.breakScore * (pumpkin?.variant.bonus ?? 1) * tool.breakBonus;
+      points += GAME.breakScore * (pumpkin?.variant.bonus ?? 1);
       this.pumpkinsSmashed++;
       this.ui.setPumpkins(this.pumpkinsSmashed);
     }
     this.shards += result.pieces;
-    points = Math.round(points * multiplier);
+    points = Math.round(points * tool.scoreMult * multiplier);
     if (points === 0) return;
 
     this.score += points;
@@ -674,8 +708,7 @@ export class Game {
   /** The popup explains where the points came from, not just how many. */
   hitLabel(result, tool, points) {
     if (result.type === "dust") return `${TEXT.dust} +${points}`;
-    if (tool.scoreMult > 1 && result.pieces > 0) return `${TEXT.cleave} ×${tool.scoreMult} +${points}`;
-    if (result.type === "break" && tool.breakBonus > 1) return `${TEXT.broke} ×${tool.breakBonus} +${points}`;
+    if (tool.scoreMult > 1) return `${TEXT.cleave} ×${tool.scoreMult} +${points}`;
     return `+${points}`;
   }
 

@@ -95,15 +95,15 @@ export class UI {
     this.selected = 0;
     this.playing = false;
 
-    // Two popup pools: "+120" in the number face, words ("DUST! +40",
-    // "SWITCH +2") in the title face.
-    const popupPool = (face, width) =>
+    // Two popup pools: "+120" numbers and words ("DUST! +40", "CRUSH +5"),
+    // which grow differently with heat.
+    const popupPool = (width) =>
       Array.from({ length: 8 }, () => {
-        const p = add(new UIText({ text: "", font: face, size: 44, width }));
+        const p = add(new UIText({ text: "", size: 44, width }));
         p.renderOrder = 50;
         return p;
       });
-    this.popups = { numbers: popupPool("numbers", 280), words: popupPool("title", 380) };
+    this.popups = { numbers: popupPool(280), words: popupPool(380) };
     this.popupCursor = { numbers: 0, words: 0 };
 
     this.reticle = add(createReticle());
@@ -482,6 +482,29 @@ export class UI {
       if (i !== index) weapon.u.reveal.value = 0;
     });
     this.punch(this.slots[index], 0.6);
+  }
+
+  /** Redraws a weapon's charge; a weapon that just got full flares up. */
+  setCharge(index, charge) {
+    const slot = this.slots[index];
+    const ready = charge >= 1;
+    if (slot.charge === charge) return;
+    const flare = ready && slot.charge !== undefined && slot.charge < 1;
+    slot.charge = charge;
+    slot.redraw(charge);
+    slot.u.wobble.value = ready && TOOLS[index].charge ? 0.04 : 0;
+    if (flare) {
+      this.punch(slot, 1.2);
+      slot.u.intensity.value = 3;
+      tweens.to(slot.u.intensity, "value", index === this.selected ? 1.6 : 0.9, 0.5);
+    }
+  }
+
+  /** An empty weapon refuses: a small shake. */
+  deny(index) {
+    const slot = this.slots[index];
+    slot.rotation.z = 0.12;
+    tweens.to(slot.rotation, "z", 0, 0.25, { easing: ease.outCubic });
   }
 
   movePointer(x, y, touch) {

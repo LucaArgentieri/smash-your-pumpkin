@@ -239,14 +239,14 @@ export class Sound {
   }
 
   /** Every combo step rings the next note up the pentatonic scale, low and round. */
-  comboUp(combo, { rankUp = false, switched = false, rank = null, t = this.now } = {}) {
+  comboUp(combo, { rankUp = false, boosted = false, rank = null, t = this.now } = {}) {
     if (!this.ready || combo < 2) return;
     // Two octaves of climb at most, so even long combos stay low.
     const i = Math.min(combo - 2, 9);
     const semis = COMBO_BASE + PENTATONIC[i % 5] + 12 * Math.floor(i / 5);
     this.tone({ type: "triangle", freq: hz(semis), dur: 0.22, gain: 0.3, t, echo: 0.2 });
     this.tone({ type: "sine", freq: hz(semis + 12), dur: 0.12, gain: 0.08, t });
-    if (switched) {
+    if (boosted) {
       this.tone({ type: "square", freq: hz(semis + 7), dur: 0.07, gain: 0.05, t: t + 0.05 });
       this.tone({ type: "square", freq: hz(semis + 12), dur: 0.1, gain: 0.05, t: t + 0.1 });
     }
@@ -285,6 +285,20 @@ export class Sound {
   select(index, t = this.now) {
     if (!this.ready) return;
     this.tone({ type: "triangle", freq: hz(-5 + index * 4), dur: 0.06, gain: 0.1, t });
+  }
+
+  /** A weapon is charged: a bright two-note ring, lower for the mallet. */
+  charged(index, t = this.now) {
+    if (!this.ready) return;
+    const root = index === 1 ? -5 : 2;
+    this.tone({ type: "square", freq: hz(root), dur: 0.08, gain: 0.06, t });
+    this.tone({ type: "square", freq: hz(root + 7), dur: 0.2, gain: 0.06, t: t + 0.07, echo: 0.3 });
+  }
+
+  /** Reaching for a weapon that isn't charged: a dull low buzz. */
+  deny(t = this.now) {
+    if (!this.ready) return;
+    this.tone({ type: "sawtooth", freq: 82, to: 70, dur: 0.12, gain: 0.08, t });
   }
 
   /** UI taps (name entry and buttons). */

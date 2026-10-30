@@ -13,18 +13,19 @@ export const GAME = {
 };
 
 // The combo is the game for hardcore players. Every hit inside the window
-// extends it and raises the multiplier; switching weapon mid-combo feeds it
-// extra; the window tightens as it grows. Letting it run out cashes it in
-// (worth combo^2 x cashOut), but clicking empty table breaks it for nothing.
+// extends it and raises the multiplier; the window tightens as it grows.
+// Letting it run out cashes it in (worth combo^2 x cashOut), and so does a
+// blow with a charged weapon once the combo reaches cashAt; clicking empty
+// table breaks it for nothing.
 export const COMBO = {
   window: 1.1, // seconds allowed between hits at the start
   minWindow: 0.55,
   tighten: 0.01, // seconds lost per combo step
   multiplierStep: 0.05,
   maxMultiplier: 3,
-  switchBonus: 2,
   cashOut: 3,
   minCashOut: 5,
+  cashAt: 100,
   ranks: [
     [5, "WICKED"],
     [10, "GRIM"],
@@ -35,6 +36,11 @@ export const COMBO = {
   ],
 };
 
+// The fist is always in hand and every landed punch charges the other two;
+// a charged weapon gives one blow, then it is empty and the fist comes back.
+// charge      punches needed to charge it
+// scoreMult   multiplies the blow's points (the axe: points now)
+// comboBonus  extra combo steps on a landed blow (the mallet: a bigger bank)
 export const TOOLS = [
   {
     id: "fist",
@@ -47,7 +53,7 @@ export const TOOLS = [
     dustRadius: 0.2,
     impulse: 1.4,
     scoreMult: 1,
-    breakBonus: 1,
+    comboBonus: 0,
     shake: 0.12,
     hitStop: 0,
     debris: 10,
@@ -58,12 +64,13 @@ export const TOOLS = [
     icon: "mallet",
     damage: 3,
     cooldown: 0.42,
+    charge: 8,
     method: "voronoi",
     fragmentCount: 8,
     dustRadius: 0.11,
     impulse: 3.4,
     scoreMult: 1,
-    breakBonus: 2,
+    comboBonus: 5,
     shake: 0.55,
     hitStop: 0.07,
     debris: 34,
@@ -74,11 +81,12 @@ export const TOOLS = [
     icon: "axe",
     damage: 3,
     cooldown: 0.24,
+    charge: 5,
     method: "slice",
     dustRadius: 0.11,
     impulse: 1.6,
-    scoreMult: 2,
-    breakBonus: 1,
+    scoreMult: 3,
+    comboBonus: 0,
     shake: 0.3,
     hitStop: 0.03,
     debris: 18,
@@ -126,13 +134,12 @@ export const TEXT = {
   best: "BEST",
   newBest: "NEW BEST",
   combo: "COMBO",
-  switched: "SWITCH",
   broken: "COMBO BROKEN",
   comboRecord: "COMBO RECORD",
   newComboRecord: "NEW COMBO RECORD",
   dust: "DUST!",
   bank: "BANK",
-  broke: "BREAK",
+  crush: "CRUSH",
   cleave: "CLEAVE",
   smashing: "SMASHING",
   banked: "COMBOS BANKED",
