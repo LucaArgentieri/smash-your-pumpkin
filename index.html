@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/smash-your-pumpkin/favicon.png" />
+    <link rel="apple-touch-icon" href="/smash-your-pumpkin/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#07030c" />
+    <title>Smash Your Pumpkin</title>
+    <meta name="description" content="A Halloween rage room: smash as many pumpkins as you can in 60 seconds." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Smash Your Pumpkin" />
+    <meta property="og:description" content="A Halloween rage room: smash as many pumpkins as you can in 60 seconds." />
+    <meta property="og:url" content="https://lucaargentieri.github.io/smash-your-pumpkin/" />
+    <meta property="og:image" content="https://lucaargentieri.github.io/smash-your-pumpkin/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://lucaargentieri.github.io/smash-your-pumpkin/og.png" />
+    <link rel="preload" href="/smash-your-pumpkin/fonts/alagard.ttf" as="font" type="font/ttf" crossorigin />
+    <style>@font-face{font-family:Alagard;src:url(/smash-your-pumpkin/fonts/alagard.ttf)format("truetype");font-display:block}html,body{background:#07030c;margin:0}#loader{z-index:10;background:#07030c;flex-direction:column;justify-content:center;align-items:center;gap:26px;padding:0 16px;transition:opacity .8s;display:flex;position:fixed;inset:0}#loader.done{opacity:0;pointer-events:none}#loader .label{text-align:center;background:linear-gradient(#ffe9a8,#ff7a1a);color:#0000;filter:drop-shadow(0 0 10px #ff4a10b3);-webkit-background-clip:text;background-clip:text;font:400 clamp(28px,7.5vw,48px) Alagard,serif;transition:opacity .25s;animation:2.2s step-end infinite flicker}#loader .label.swap{opacity:0}#loader .dots span{visibility:hidden}@keyframes flicker{0%,to{opacity:1}12%{opacity:.82}14%{opacity:1}47%{opacity:.9}49%{opacity:1}71%{opacity:.76}73%{opacity:1}}@media (prefers-reduced-motion:reduce){#loader .label{animation:none}}</style>
+    <script type="module" crossorigin src="/smash-your-pumpkin/assets/index-CkU_EXz2.js"></script>
+    <link rel="stylesheet" crossorigin href="/smash-your-pumpkin/assets/index-DkW9AR7h.css">
+  </head>
+  <body>
+    <div id="loader" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100">
+      <div class="label"><span class="text">lighting the candles</span><span class="dots"><span>.</span><span>.</span><span>.</span></span></div>
+    </div>
+    <script>
+      // Dots tick before any module has loaded; stops when the loader is gone.
+      (function () {
+        var step = 0;
+        var timer = setInterval(function () {
+          var dots = document.querySelectorAll("#loader .dots span");
+          if (!dots.length) return clearInterval(timer);
+          step = (step + 1) % 4;
+          for (var i = 0; i < dots.length; i++) dots[i].style.visibility = i < step ? "visible" : "hidden";
+        }, 380);
+      })();
+    </script>
+  </body>
+</html>
