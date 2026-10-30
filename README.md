@@ -20,11 +20,11 @@ reference:
 The combo is where high scores come from:
 
 - Every hit inside the combo window extends it and raises the point multiplier (up to x3).
-- Switching weapon mid-combo adds +2.
 - The window tightens as the combo grows (1.1 s down to 0.55 s). Instead of a timer bar, a pixelated
   wall of fire closes in from the screen edges as the window runs out, charring the room behind it and
   throbbing red when time is nearly gone. Banking the combo makes it flare; a miss snuffs it dull red.
-- Let it run out and it is **cashed in** for combo² × 3 points. Click empty table and it **breaks** for nothing. A live **BANK** value under the combo shows what
+- Let it run out and it is **cashed in** for combo² × 3 points. Past x100, a blow with a charged weapon
+  cashes it in on the spot and starts a new combo. Click empty table and it **breaks** for nothing. A live **BANK** value under the combo shows what
   it would pay right now.
 - Ranks: WICKED (5), GRIM (10), GHASTLY (20), UNHOLY (35), DAMNED (50), APOCALYPTIC (80).
 - The best score and the combo record are kept in the browser.
@@ -34,11 +34,16 @@ The combo is where high scores come from:
 The results screen (where the leaderboard will live) switches to a low camera over the pumpkin's
 shoulder while it turns to gaze at the moon, drifting slowly like an arcade attract mode.
 
-Score popups say where points come from ("BREAK ×2" for the mallet, "CLEAVE ×2" for the axe, "DUST!",
+You start every round with bare fists. Each punch that lands charges the mallet (8 punches) and the
+axe (5); a charged weapon gives a single blow, then it is empty again and the fist comes back. The
+mallet feeds the combo (+5, "CRUSH +5"), the axe pays points now (×3, "CLEAVE ×3"). An empty slot is a
+dark shadow that fills with embers as you punch and lights up when it is ready.
+
+Score popups say where points come from ("CRUSH +5", "CLEAVE ×3", "DUST!",
 bonus pumpkins like "PIP ×2"), and the results split the score into smashing and banked combos.
 
-Every click is one blow (holding the button does nothing), so speed and picking the right weapon are
-what score. Near misses still count, which helps on touch screens. The leaderboard keeps the top 100,
+Every click is one blow (holding the button does nothing), so speed and choosing when to spend a
+charged weapon are what score. Near misses still count, which helps on touch screens. The leaderboard keeps the top 100,
 ten per page (arrows, wheel, arrow keys or swipe), and opens on the page with your entry. Tuning lives
 in `COMBO` and `TOOLS` in `src/config.js`.
 
@@ -53,7 +58,7 @@ Everything is synthesised with Web Audio in `src/audio/Sound.js`, so there are n
   fist, mallet and axe, with a short dark splat on pumpkin. A pumpkin bursting gets a deep crunch and a
   dust grind gets a sparkle.
 - **Combo**: every hit in a combo rings the next note up the A minor pentatonic, starting low at D2 and climbing at most two octaves.
-  Rank ups add an arpeggio, switching weapon adds a bling, a cash-out is a cascade that lands on a low
+  Rank ups add an arpeggio, a mallet blow adds a bling, a weapon charging up rings twice, a cash-out is a cascade that lands on a low
   power chord and a broken combo is a sad wah-wah.
 - **Announcer**: a deep, Quake-style voice calls out each combo rank (WICKED, GRIM, …) and the music
   ducks under it. The lines are pre-rendered in `public/voice/` by `scripts/build-voice.sh`
